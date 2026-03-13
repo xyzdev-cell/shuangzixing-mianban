@@ -28,7 +28,7 @@ router.get('/models', async (req, res, next) => {
         }));
 
         // Check if web search is enabled
-        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
+        const webSearchEnabled = String(await configService.getSetting('web_search', '1')) === '1';
 
         // Add search versions for gemini-2.0+ series models only if web search is enabled
         let searchModels = [];
@@ -47,12 +47,12 @@ router.get('/models', async (req, res, next) => {
                     owned_by: "google",
                 }));
         }
-        
+
         // Add non-thinking versions for gemini-2.5-flash-preview models
         const nonThinkingModels = Object.keys(modelsConfig)
-            .filter(modelId => 
+            .filter(modelId =>
                 // Currently only gemini-2.5-flash-preview supports thinkingBudget
-                modelId.includes('gemini-2.5-flash-preview') && 
+                modelId.includes('gemini-2.5-flash-preview') &&
                 // Exclude models that are already non-thinking versions
                 !modelId.endsWith(':non-thinking')
             )
@@ -62,7 +62,7 @@ router.get('/models', async (req, res, next) => {
                 created: Math.floor(Date.now() / 1000),
                 owned_by: "google",
             }));
-        
+
         // Merge regular, search and non-thinking model lists
         modelsData = [...modelsData, ...searchModels, ...nonThinkingModels];
 
@@ -74,7 +74,7 @@ router.get('/models', async (req, res, next) => {
                 created: Math.floor(Date.now() / 1000),
                 owned_by: "google",
             }));
-            
+
             // Add Vertex models to the list
             modelsData = [...modelsData, ...vertexModels];
         }
@@ -92,7 +92,7 @@ router.post('/chat/completions', async (req, res, next) => {
     const workerApiKey = req.workerApiKey; // Attached by requireWorkerAuth middleware
     const stream = openAIRequestBody?.stream ?? false;
     const requestedModelId = openAIRequestBody?.model; // Keep track for transformations
-    
+
     try {
         // --- Model Validation Step ---
         // Get all available models to validate against the request
@@ -100,14 +100,14 @@ router.post('/chat/completions', async (req, res, next) => {
         let enabledModels = Object.keys(modelsConfig);
 
         // Add search versions if web search is enabled
-        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
+        const webSearchEnabled = String(await configService.getSetting('web_search', '1')) === '1';
         if (webSearchEnabled) {
             const searchModels = Object.keys(modelsConfig)
                 .filter(modelId => /^gemini-[2-9]\.\d/.test(modelId) && !modelId.endsWith('-search'))
                 .map(modelId => `${modelId}-search`);
             enabledModels = [...enabledModels, ...searchModels];
         }
-        
+
         // Add non-thinking versions
         const nonThinkingModels = Object.keys(modelsConfig)
             .filter(modelId => modelId.includes('gemini-2.5-flash-preview') && !modelId.endsWith(':non-thinking'))
@@ -131,15 +131,15 @@ router.post('/chat/completions', async (req, res, next) => {
             });
         }
         // --- End Model Validation ---
-        
+
         // Check if this is a non-thinking model request
         const isNonThinking = requestedModelId?.endsWith(':non-thinking');
         // Remove the suffix for actual model lookup, but keep original for response
         const actualModelId = isNonThinking ? requestedModelId.replace(':non-thinking', '') : requestedModelId;
-        
+
         // Set thinkingBudget to 0 for non-thinking models
         const thinkingBudget = isNonThinking ? 0 : undefined;
-        
+
         // If model was modified, update the request body with the actual model ID
         if (isNonThinking) {
             openAIRequestBody.model = actualModelId;
@@ -446,11 +446,11 @@ router.post('/chat/completions', async (req, res, next) => {
                             let inString = false;
                             let escapeNext = false;
                             let flushed = false;
-                            
+
                             // Scan the entire buffer to find complete JSON objects
                             for (let i = 0; i < buffer.length; i++) {
                                 const char = buffer[i];
-                                
+
                                 // Handle characters inside strings
                                 if (inString) {
                                     if (escapeNext) {
@@ -462,7 +462,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                     }
                                     continue;
                                 }
-                                
+
                                 // Handle characters outside strings
                                 if (char === '{') {
                                     if (bracketDepth === 0) {
@@ -473,7 +473,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                     bracketDepth--;
                                     if (bracketDepth === 0 && startPos !== -1) {
                                         endPos = i;
-                                        
+
                                         // Extract and process the complete JSON object
                                         const jsonStr = buffer.substring(startPos, endPos + 1);
                                         try {
@@ -507,10 +507,10 @@ router.post('/chat/completions', async (req, res, next) => {
                                             // This outer catch handles errors from buffer.substring or other unexpected issues
                                             console.error("Error processing Vertex JSON chunk:", e, "Original string:", jsonStr);
                                         }
-                                        
+
                                         // Continue searching for the next object
                                         startPos = -1;
-                                        
+
                                         // Truncate the processed part
                                         if (i + 1 < buffer.length) {
                                             buffer = buffer.substring(endPos + 1);
@@ -531,11 +531,11 @@ router.post('/chat/completions', async (req, res, next) => {
                         let bracketDepth = 0;
                         let inString = false;
                         let escapeNext = false;
-                        
+
                         // Scan the entire buffer to find complete JSON objects
                         for (let i = 0; i < buffer.length; i++) {
                             const char = buffer[i];
-                            
+
                             // Handle characters within strings
                             if (inString) {
                                 if (escapeNext) {
@@ -547,7 +547,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                 }
                                 continue;
                             }
-                            
+
                             // Handle characters outside strings
                             if (char === '{') {
                                 if (bracketDepth === 0) {
@@ -558,7 +558,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                 bracketDepth--;
                                 if (bracketDepth === 0 && startPos !== -1) {
                                     endPos = i;
-                                    
+
                                     // Extract and process the complete JSON object
                                     const jsonStr = buffer.substring(startPos, endPos + 1);
                                     try {
@@ -568,7 +568,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                     } catch (e) {
                                         console.error("Error parsing JSON object:", e);
                                     }
-                                    
+
                                                 // Continue searching for the next object
                                                 startPos = -1;
                                             }
@@ -585,7 +585,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                             continue;
                                         }
                                     }
-                                    
+
                                     // Keep the unprocessed part for Gemini stream
                                     if (startPos !== -1 && endPos !== -1 && endPos > startPos) {
                                         buffer = buffer.substring(endPos + 1);
@@ -595,14 +595,14 @@ router.post('/chat/completions', async (req, res, next) => {
                                         buffer = '';
                                     }
                             } // End of else (Gemini stream processing)
-                        
+
                         callback();
                     } catch (e) {
                         console.error("Error in stream transform:", e);
                         callback(e);
                     }
                 },
-                
+
                 flush(callback) {
                     try {
                 // Handling the remaining buffer
@@ -614,10 +614,10 @@ router.post('/chat/completions', async (req, res, next) => {
                             let bracketDepth = 0;
                             let inString = false;
                             let escapeNext = false;
-                            
+
                             for (let i = 0; i < buffer.length; i++) {
                                 const char = buffer[i];
-                                
+
                                 if (inString) {
                                     if (escapeNext) {
                                         escapeNext = false;
@@ -628,7 +628,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                     }
                                     continue;
                                 }
-                                
+
                                 if (char === '{') {
                                     if (bracketDepth === 0) {
                                         startPos = i;
@@ -638,7 +638,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                     bracketDepth--;
                                     if (bracketDepth === 0 && startPos !== -1) {
                                         endPos = i;
-                                        
+
                                         try {
                                             const jsonStr = buffer.substring(startPos, endPos + 1);
                                             const jsonObj = JSON.parse(jsonStr);
@@ -648,7 +648,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                         } catch (e) {
                                             console.debug("Could not parse Vertex buffer JSON:", e);
                                         }
-                                        
+
                                         // Update the buffer and reset the index
                                         if (endPos + 1 < buffer.length) {
                                             buffer = buffer.substring(endPos + 1);
@@ -673,7 +673,7 @@ router.post('/chat/completions', async (req, res, next) => {
                                 }
                              }
                         }
-                        
+
                         // Always send the final [DONE] event
                                                 // console.log("Stream transformer flushing, sending [DONE]."); // Removed log
                                                 this.push('data: [DONE]\n\n');
@@ -684,11 +684,11 @@ router.post('/chat/completions', async (req, res, next) => {
                     }
                 }
             });
-            
+
             // Process a single Gemini API response object and convert it to OpenAI format
             function processGeminiObject(geminiObj, stream) {
                 if (!geminiObj) return;
-                
+
                 // If it's a valid Gemini response object (contains candidates)
                 if (geminiObj.candidates && geminiObj.candidates.length > 0) {
                     // Convert and send directly
@@ -711,7 +711,7 @@ router.post('/chat/completions', async (req, res, next) => {
                             }
                         }]
                     };
-                    
+
                     const openaiChunkStr = transformUtils.transformGeminiStreamChunk(mockGeminiChunk, requestedModelId);
                     if (openaiChunkStr) {
                         stream.push(openaiChunkStr);
