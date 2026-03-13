@@ -162,11 +162,6 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                         geminiRequestBody.tools = [googleSearchTool];
                     }
                     
-                    // Add a prompt at the end of the request to encourage the model to use search tools
-                    geminiRequestBody.contents.push({
-                        role: 'user',
-                        parts: [{ text: '(Use search tools to get the relevant information and complete this request.)' }]
-                    });
                 }
 
                 if (!isSafetyEnabled) {
