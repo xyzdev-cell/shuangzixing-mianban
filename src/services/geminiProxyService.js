@@ -152,7 +152,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     
                     // Create Google Search tool
                     const googleSearchTool = {
-                        googleSearch: {}
+                        google_search: {}
                     };
                     
                     // Add to existing tools or create a new tools array
