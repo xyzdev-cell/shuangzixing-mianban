@@ -76,9 +76,9 @@ app.get('/admin', requireAdminAuth, (req, res) => {
 app.use('/admin', requireAdminAuth, express.static(path.join(__dirname, '..', 'public', 'admin')));
 
 // --- API Routes ---
-app.use('/api', authRoutes); 
-app.use('/api/admin', requireAdminAuth, adminApiRoutes); 
-app.use('/v1', apiV1Routes); 
+app.use('/api', authRoutes);
+app.use('/api/admin', requireAdminAuth, adminApiRoutes);
+app.use('/v1', apiV1Routes);
 
 // --- Global Error Handler ---
 app.use((err, req, res, next) => {
@@ -94,7 +94,7 @@ app.use((err, req, res, next) => {
 
 // --- Start Server ---
 app.listen(port, '0.0.0.0', async () => {
-    console.log(`JimiHub (Node.js version) listening on port ${port} (all interfaces)`);
+    console.log(`JimiHub v20260410  (Node.js version) listening on port ${port} (all interfaces)`);
 
     // Log Proxy Pool Status
     const proxyStatus = proxyPool.getProxyPoolStatus(); // Get status from proxyPool module
@@ -105,7 +105,7 @@ app.listen(port, '0.0.0.0', async () => {
     } else {
         console.log(`Proxy Pool: Disabled (PROXY environment variable not set or contains no valid SOCKS5 proxies)`);
     }
-    
+
     // Log Vertex AI Status using the check function
     if (vertexService.isVertexEnabled()) {
         // Check if we're using Express Mode
@@ -117,7 +117,7 @@ app.listen(port, '0.0.0.0', async () => {
     } else {
         console.log(`Vertex AI: Disabled (VERTEX variable and EXPRESS_API_KEY not found or invalid in .env file)`);
     }
-    
+
     // Check if running in Hugging Face Space
     if (process.env.HUGGING_FACE === '1' && process.env.SPACE_HOST) {
         const adminUrl = `https://${process.env.SPACE_HOST}/admin`;

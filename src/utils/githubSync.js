@@ -251,7 +251,7 @@ class GitHubSync {
       this.pendingSync = false;
       this.syncTimer = null;
 
-      console.log('v20260410 Starting GitHub sync...');
+      console.log('Starting GitHub sync...');
       try {
         await this.uploadDatabase();
         console.log('GitHub sync completed successfully');
