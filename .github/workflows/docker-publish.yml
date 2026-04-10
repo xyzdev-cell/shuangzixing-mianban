@@ -40,7 +40,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.huggingface
+          file: ./Dockerfile
           push: true
           tags: ghcr.io/${{ env.REPO_OWNER_LC }}/${{ env.REPO_NAME_LC }}:latest
           labels: ${{ steps.meta.outputs.labels }}
