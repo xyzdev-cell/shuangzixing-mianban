@@ -28,7 +28,7 @@ router.get('/models', async (req, res, next) => {
         }));
 
         // Check if web search is enabled
-        const webSearchEnabled = String(await configService.getSetting('web_search', '1')) === '1';
+        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
         console.log('webSearchEnabled', await configService.getSetting('web_search'), webSearchEnabled);
         // Add search versions for gemini-2.0+ series models only if web search is enabled
         let searchModels = [];
@@ -100,7 +100,7 @@ router.post('/chat/completions', async (req, res, next) => {
         let enabledModels = Object.keys(modelsConfig);
 
         // Add search versions if web search is enabled
-        const webSearchEnabled = String(await configService.getSetting('web_search', '1')) === '1';
+        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
         if (webSearchEnabled) {
             const searchModels = Object.keys(modelsConfig)
                 .filter(modelId => /^gemini-[2-9]\.\d/.test(modelId) && !modelId.endsWith('-search'))
