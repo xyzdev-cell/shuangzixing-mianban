@@ -94,7 +94,7 @@ app.use((err, req, res, next) => {
 
 // --- Start Server ---
 app.listen(port, '0.0.0.0', async () => {
-    console.log(`JimiHub v20260410  (Node.js version) listening on port ${port} (all interfaces)`);
+    console.log(`JimiHub  (Node.js version) listening on port ${port} (all interfaces)`);
 
     // Log Proxy Pool Status
     const proxyStatus = proxyPool.getProxyPoolStatus(); // Get status from proxyPool module
