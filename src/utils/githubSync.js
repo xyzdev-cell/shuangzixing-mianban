@@ -9,7 +9,7 @@ class GitHubSync {
     this.token = token;
     this.dbPath = dbPath;
     this.encryptKey = encryptKey;
-    
+
     // Parse GitHub repo owner and name
     const repoNameParts = this.repoName.split('/');
     if (repoNameParts.length !== 2 || !repoNameParts[0] || !repoNameParts[1]) {
@@ -19,7 +19,7 @@ class GitHubSync {
       this.owner = repoNameParts[0];
       this.repo = repoNameParts[1];
       this.isValid = true;
-      
+
       // Initialize Octokit with the token
       this.octokit = new Octokit({
         auth: this.token
@@ -32,7 +32,7 @@ class GitHubSync {
     }
 
     this.initialSyncCompleted = false;
-    
+
     // Sync scheduling variables
     this.pendingSync = false;
     this.syncTimer = null;
@@ -96,20 +96,20 @@ class GitHubSync {
     try {
       // Generate a random initialization vector
       const iv = crypto.randomBytes(16);
-      
+
       // Create cipher with AES-256-CBC using the key and iv
       const key = crypto.createHash('sha256').update(this.encryptKey).digest();
       const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-      
+
       // Encrypt the data
       const encrypted = Buffer.concat([
         cipher.update(data),
         cipher.final()
       ]);
-      
+
       // Prepend the IV to the encrypted data
       const result = Buffer.concat([iv, encrypted]);
-      
+
       console.log('Data successfully encrypted');
       return result;
     } catch (error) {
@@ -135,17 +135,17 @@ class GitHubSync {
       // Extract the IV from the first 16 bytes
       const iv = data.slice(0, 16);
       const encryptedData = data.slice(16);
-      
+
       // Create decipher with AES-256-CBC using the key and iv
       const key = crypto.createHash('sha256').update(this.encryptKey).digest();
       const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-      
+
       // Decrypt the data
       const decrypted = Buffer.concat([
         decipher.update(encryptedData),
         decipher.final()
       ]);
-      
+
       console.log('Data successfully decrypted');
       return decrypted;
     } catch (error) {
@@ -163,7 +163,7 @@ class GitHubSync {
 
     try {
       console.log(`Attempting to download database from GitHub repository: ${this.repoName}`);
-      
+
       // Get the content of the database file from GitHub
       // First, try to get the file info to check if it exists
       try {
@@ -176,18 +176,18 @@ class GitHubSync {
         // If the file exists, download the binary content
         if (data && data.download_url) {
           const response = await fetch(data.download_url);
-          
+
           if (!response.ok) {
             throw new Error(`Failed to download file: ${response.statusText}`);
           }
-          
+
           // Get the file as ArrayBuffer
           const arrayBuffer = await response.arrayBuffer();
           let buffer = Buffer.from(arrayBuffer);
-          
+
           // Check if the data appears to be encrypted
           const isEncrypted = this.isEncryptedData(buffer);
-          
+
           // Decrypt the data if encryption is enabled and data appears encrypted
           if (this.isEncryptionEnabled() && isEncrypted) {
             console.log('Downloaded database file is encrypted, decrypting...');
@@ -251,7 +251,7 @@ class GitHubSync {
       this.pendingSync = false;
       this.syncTimer = null;
 
-      console.log('Starting GitHub sync...');
+      console.log('v20260410 Starting GitHub sync...');
       try {
         await this.uploadDatabase();
         console.log('GitHub sync completed successfully');
@@ -278,10 +278,10 @@ class GitHubSync {
 
     try {
       console.log(`Uploading database to GitHub repository: ${this.repoName}`);
-      
+
       // Read the local database file
       let content = await fs.readFile(this.dbPath);
-      
+
       // Encrypt the data if encryption is enabled
       if (this.isEncryptionEnabled()) {
         // Only encrypt if not already encrypted
@@ -297,10 +297,10 @@ class GitHubSync {
           console.log('Data is already encrypted, skipping re-encryption');
         }
       }
-      
+
       // Convert to base64
       const contentEncoded = content.toString('base64');
-      
+
       // Try to get the file SHA if it exists (needed for update)
       let fileSha;
       try {
@@ -313,7 +313,7 @@ class GitHubSync {
       } catch (error) {
         // File doesn't exist yet, which is fine
       }
-      
+
       // Create or update the file on GitHub
       await this.octokit.repos.createOrUpdateFileContents({
         owner: this.owner,
@@ -323,7 +323,7 @@ class GitHubSync {
         content: contentEncoded,
         sha: fileSha, // If undefined, GitHub will create a new file
       });
-      
+
       console.log('Database successfully uploaded to GitHub');
       return true;
     } catch (error) {
