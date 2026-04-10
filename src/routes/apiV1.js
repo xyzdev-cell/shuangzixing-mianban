@@ -35,8 +35,8 @@ router.get('/models', async (req, res, next) => {
         if (webSearchEnabled) {
             searchModels = Object.keys(modelsConfig)
                 .filter(modelId =>
-                    // Match gemini-2.0, gemini-2.5, gemini-3.0, etc. series models
-                    /^gemini-[2-9]\.\d/.test(modelId) &&
+                    // Match gemini-2.x, gemini-3-xxx, etc. series models (version 2+)
+                    /^gemini-[2-9]/.test(modelId) &&
                     // Exclude models that are already search versions
                     !modelId.endsWith('-search')
                 )
@@ -103,7 +103,7 @@ router.post('/chat/completions', async (req, res, next) => {
         const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
         if (webSearchEnabled) {
             const searchModels = Object.keys(modelsConfig)
-                .filter(modelId => /^gemini-[2-9]\.\d/.test(modelId) && !modelId.endsWith('-search'))
+                .filter(modelId => /^gemini-[2-9]/.test(modelId) && !modelId.endsWith('-search'))
                 .map(modelId => `${modelId}-search`);
             enabledModels = [...enabledModels, ...searchModels];
         }
