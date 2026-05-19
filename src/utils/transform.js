@@ -182,12 +182,29 @@ function transformOpenAiToGemini(requestBody, requestedModelId, isSafetyEnabled 
 
 
 /**
+ * Creates a fresh per-request state object for the streaming transformer.
+ * The state tracks which function calls have already been emitted so we
+ * don't duplicate tool_call deltas across chunks (which would corrupt the
+ * accumulated arguments JSON on the client side).
+ */
+function createStreamState() {
+    return {
+        emittedToolCalls: new Map(), // key: functionCall.name -> { id, index }
+        nextToolCallIndex: 0,
+    };
+}
+
+/**
  * Transforms a single Gemini API stream chunk into an OpenAI-compatible SSE chunk.
  * @param {object} geminiChunk - The parsed JSON object from a Gemini stream line.
  * @param {string} modelId - The model ID used for the request.
+ * @param {object} [state] - Per-request state from createStreamState() used to
+ *   dedupe tool_call emissions across chunks. If omitted, a transient state is
+ *   used (only safe if the entire stream is a single chunk).
  * @returns {string | null} An OpenAI SSE data line string ("data: {...}\n\n") or null if chunk is empty/invalid.
  */
-function transformGeminiStreamChunk(geminiChunk, modelId) {
+function transformGeminiStreamChunk(geminiChunk, modelId, state) {
+    if (!state) state = createStreamState();
 	try {
 		if (!geminiChunk || !geminiChunk.candidates || !geminiChunk.candidates.length) {
             // Ignore chunks that only contain usageMetadata (often appear at the end)
@@ -212,28 +229,49 @@ function transformGeminiStreamChunk(geminiChunk, modelId) {
             }
 
             if (functionCallParts.length > 0) {
-                // Generate unique IDs for tool calls within the stream context if needed,
-                // or use a simpler identifier if absolute uniqueness isn't critical across chunks.
-                toolCalls = functionCallParts.map((part, index) => ({
-                    index: index, // Gemini doesn't provide a stable index in stream AFAIK, use loop index
-                    id: `call_${part.functionCall.name}_${Date.now()}_${index}`, // Example ID generation
-                    type: "function",
-                    function: {
-                        name: part.functionCall.name,
-                        // Arguments in Gemini stream might be partial JSON, attempt to stringify
-                        arguments: JSON.stringify(part.functionCall.args || {}),
-                    },
-                }));
+                // Gemini emits each functionCall as a complete object (not partial JSON deltas
+                // like OpenAI). If we naively forward every chunk's functionCall, clients that
+                // accumulate `arguments` per index (e.g. LobeHub) end up with concatenated
+                // duplicates like `{}{}`, which then fail to parse and crash the renderer
+                // (Lexical error #38). So we only emit each unique call once.
+                const newCalls = [];
+                for (const part of functionCallParts) {
+                    const fc = part.functionCall;
+                    if (!fc || !fc.name) continue;
+                    if (state.emittedToolCalls.has(fc.name)) continue; // already sent
+
+                    const entry = {
+                        id: `call_${fc.name}_${Date.now()}_${state.nextToolCallIndex}`,
+                        index: state.nextToolCallIndex++,
+                    };
+                    state.emittedToolCalls.set(fc.name, entry);
+
+                    newCalls.push({
+                        index: entry.index,
+                        id: entry.id,
+                        type: "function",
+                        function: {
+                            name: fc.name,
+                            arguments: JSON.stringify(fc.args || {}),
+                        },
+                    });
+                }
+                if (newCalls.length > 0) {
+                    toolCalls = newCalls;
+                }
             }
         }
 
 		// Determine finish reason mapping
 		let finishReason = candidate.finishReason;
+        const hasAnyToolCalls = state.emittedToolCalls.size > 0;
         if (finishReason === "STOP") finishReason = "stop";
         else if (finishReason === "MAX_TOKENS") finishReason = "length";
         else if (finishReason === "SAFETY" || finishReason === "RECITATION") finishReason = "content_filter";
-        else if (finishReason === "TOOL_CALLS" || (toolCalls && toolCalls.length > 0 && finishReason !== 'stop' && finishReason !== 'length')) {
-            // If there are tool calls and the reason isn't stop/length, map it to tool_calls
+        else if (finishReason === "TOOL_CALLS" || (hasAnyToolCalls && finishReason !== 'stop' && finishReason !== 'length')) {
+            // If any tool calls have been emitted on this stream and the reason isn't stop/length,
+            // map it to tool_calls. We check across the whole stream (via state) rather than just
+            // this chunk because Gemini's repeated functionCall payloads get deduped above.
             finishReason = "tool_calls";
         } else if (finishReason && finishReason !== "FINISH_REASON_UNSPECIFIED" && finishReason !== "OTHER") {
             // Keep known reasons like 'stop', 'length', 'content_filter'
@@ -462,6 +500,7 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 module.exports = {
     parseDataUri,
     transformOpenAiToGemini,
+    createStreamState,
     transformGeminiStreamChunk,
     transformGeminiResponseToOpenAI,
 };

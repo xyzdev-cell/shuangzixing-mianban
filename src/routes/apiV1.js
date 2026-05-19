@@ -429,6 +429,12 @@ router.post('/chat/completions', async (req, res, next) => {
             let openBraces = 0;
             let closeBraces = 0;
 
+            // Per-request streaming state. Tracks emitted tool_calls so we don't
+            // duplicate them across chunks (Gemini repeats the full functionCall
+            // object in subsequent chunks, which corrupts client-side argument
+            // accumulation).
+            const streamState = transformUtils.createStreamState();
+
             // Implement stream processing transformer for both Gemini and Vertex streams
             const streamTransformer = new Transform({
                 transform(chunk, encoding, callback) {
@@ -692,7 +698,7 @@ router.post('/chat/completions', async (req, res, next) => {
                 // If it's a valid Gemini response object (contains candidates)
                 if (geminiObj.candidates && geminiObj.candidates.length > 0) {
                     // Convert and send directly
-                    const openaiChunkStr = transformUtils.transformGeminiStreamChunk(geminiObj, requestedModelId);
+                    const openaiChunkStr = transformUtils.transformGeminiStreamChunk(geminiObj, requestedModelId, streamState);
                     if (openaiChunkStr) {
                         stream.push(openaiChunkStr);
                     }
@@ -712,7 +718,7 @@ router.post('/chat/completions', async (req, res, next) => {
                         }]
                     };
 
-                    const openaiChunkStr = transformUtils.transformGeminiStreamChunk(mockGeminiChunk, requestedModelId);
+                    const openaiChunkStr = transformUtils.transformGeminiStreamChunk(mockGeminiChunk, requestedModelId, streamState);
                     if (openaiChunkStr) {
                         stream.push(openaiChunkStr);
                     }
