@@ -1,8 +1,11 @@
-const cron = require('node-cron');
-const configService = require('./configService.ts');
-const batchTestService = require('./batchTestService.ts');
+import cron from 'node-cron';
+import * as configService from './configService.js';
+import * as batchTestService from './batchTestService.js';
 
 class SchedulerService {
+    batchTestTask: any;
+    isInitialized: boolean;
+
     constructor() {
         this.batchTestTask = null;
         this.isInitialized = false;
@@ -74,7 +77,7 @@ class SchedulerService {
         }, {
             scheduled: true,
             timezone: 'UTC' // We calculate the UTC time manually for Beijing time
-        });
+        } as any);
 
         console.log('Batch test scheduled to run daily at 4 AM Beijing time (20:00 UTC)');
     }
@@ -140,5 +143,5 @@ class SchedulerService {
 // Create singleton instance
 const schedulerService = new SchedulerService();
 
-module.exports = schedulerService;
+export default schedulerService;
 

@@ -1,13 +1,13 @@
-const express = require('express');
-const requireAdminAuth = require('../middleware/adminAuth.ts');
-const configService = require('../services/configService.ts');
-const geminiKeyService = require('../services/geminiKeyService.ts');
-const vertexProxyService = require('../services/vertexProxyService.ts');
-const batchTestService = require('../services/batchTestService.ts');
+import express from 'express';
+import requireAdminAuth from '../middleware/adminAuth.js';
+import * as configService from '../services/configService.js';
+import * as geminiKeyService from '../services/geminiKeyService.js';
+import * as vertexProxyService from '../services/vertexProxyService.js';
+import * as batchTestService from '../services/batchTestService.js';
 // Note: schedulerService is imported lazily when needed to avoid database initialization issues
-const fetch = require('node-fetch');
-const dbModule = require('../db/index.ts');
-const proxyPool = require('../utils/proxyPool.ts'); // Import the proxy pool module
+import fetch from 'node-fetch';
+import * as dbModule from '../db/index.js';
+import * as proxyPool from '../utils/proxyPool.js'; // Import the proxy pool module
 const router = express.Router();
 
 // Apply admin authentication middleware to all /api/admin routes
@@ -152,7 +152,7 @@ router.post('/test-gemini-key', async (req, res, next) => {
         try {
             // Get proxy agent
             const agent = proxyPool.getNextProxyAgent();
-            const fetchOptions = {
+            const fetchOptions: any = {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -230,7 +230,7 @@ router.get('/gemini-models', async (req, res, next) => {
 
              // Get proxy agent
              const agent = proxyPool.getNextProxyAgent();
-             const fetchOptions = {
+             const fetchOptions: any = {
                  method: 'GET',
                  headers: {
                      'Content-Type': 'application/json',
@@ -537,7 +537,7 @@ router.route('/vertex-config')
                 return res.status(400).json({ error: 'Only one authentication method can be configured at a time' });
             }
 
-            let configData = {};
+            let configData: any = {};
 
             if (expressApiKey) {
                 // Validate Express API Key format (basic validation)
@@ -679,7 +679,7 @@ router.route('/system-settings')
 
             // Update scheduler service when auto_test setting changes
             try {
-                const schedulerService = require('../services/schedulerService.ts');
+                const { default: schedulerService } = await import('../services/schedulerService.js');
                 await schedulerService.updateBatchTestSchedule();
                 console.log('Scheduler updated after auto_test setting change');
             } catch (schedulerError) {
@@ -718,7 +718,7 @@ router.post('/batch-test/run', async (req, res, next) => {
 
 router.get('/batch-test/status', async (req, res, next) => {
     try {
-        const schedulerService = require('../services/schedulerService.ts');
+        const { default: schedulerService } = await import('../services/schedulerService.js');
         const schedulerStatus = schedulerService.getStatus();
         const autoTestEnabled = await configService.getSetting('auto_test', '0');
 
@@ -734,5 +734,5 @@ router.get('/batch-test/status', async (req, res, next) => {
 });
 
 
-module.exports = router;
+export default router;
 

@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'node:crypto';
 
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_DURATION_SECONDS = 1 * 60 * 60; // 1 hour
@@ -153,7 +153,7 @@ async function verifySessionCookie(req) {
     return await verifySessionToken(token);
 }
 
-module.exports = {
+export {
     generateSessionToken,
     verifySessionToken,
     getSessionTokenFromCookie,

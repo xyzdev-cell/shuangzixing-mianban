@@ -1,7 +1,7 @@
-const dbModule = require('../db/index.ts');
-const configService = require('./configService.ts'); // Use configService for DB helpers and settings
-const { getTodayInLA } = require('../utils/helpers.ts');
-const crypto = require('crypto'); // For generating key IDs
+import * as dbModule from '../db/index.js';
+import * as configService from './configService.js'; // Use configService for DB helpers and settings
+import { getTodayInLA } from '../utils/helpers.js';
+import crypto from 'node:crypto'; // For generating key IDs
 
 // --- Gemini Key CRUD Operations ---
 
@@ -309,7 +309,7 @@ async function deleteGeminiKey(keyId) {
  */
 async function getAllGeminiKeysWithUsage() {
     // Fetch models config and category quotas needed for display logic
-    const [modelsConfig, categoryQuotas] = await Promise.all([
+    const [modelsConfig, categoryQuotas]: [Record<string, any>, any] = await Promise.all([
         configService.getModelsConfig(),
         configService.getCategoryQuotas()
     ]);
@@ -325,7 +325,7 @@ async function getAllGeminiKeysWithUsage() {
 
             const isQuotaReset = keyRow.usage_date !== todayInLA;
 
-            let displayModelUsage = {};
+            let displayModelUsage: Record<string, any> = {};
              // Populate modelUsageData for all relevant models (Custom or Pro/Flash with individualQuota)
             Object.entries(modelsConfig).forEach(([modelId, modelConfig]) => {
                 let quota = undefined;
@@ -1159,7 +1159,7 @@ async function handle429Error(keyId, category, modelId, errorDetails) {
 }
 
 
-module.exports = {
+export {
     addGeminiKey,
     addMultipleGeminiKeys,
     deleteGeminiKey,

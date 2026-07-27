@@ -54,7 +54,7 @@ async function readRequestBody(req) {
 // 	};
 // }
 
-module.exports = {
+export {
     getTodayInLA,
     readRequestBody,
     // corsHeaders // Not exporting as it's handled by middleware

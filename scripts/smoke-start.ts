@@ -8,4 +8,4 @@ setTimeout(() => {
   process.exit(0);
 }, 3000);
 
-require('../src/index.ts');
+await import('../src/index.js');

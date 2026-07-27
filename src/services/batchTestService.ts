@@ -1,7 +1,7 @@
-const fetch = require('node-fetch');
-const configService = require('./configService.ts');
-const geminiKeyService = require('./geminiKeyService.ts');
-const proxyPool = require('../utils/proxyPool.ts');
+import fetch from 'node-fetch';
+import * as configService from './configService.js';
+import * as geminiKeyService from './geminiKeyService.js';
+import * as proxyPool from '../utils/proxyPool.js';
 
 // Base Gemini API URL
 const BASE_GEMINI_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com';
@@ -64,14 +64,14 @@ async function testSingleKey(keyId, modelId) {
         const testGeminiRequestBody = { contents: [{ role: "user", parts: [{ text: "Hi" }] }] };
         const geminiUrl = `${BASE_GEMINI_URL}/v1beta/models/${modelId}:generateContent`;
 
-        let testResponseStatus = 500;
+        let testResponseStatus: any = 500;
         let testResponseBody = null;
         let isSuccess = false;
 
         try {
             // Get proxy agent
             const agent = proxyPool.getNextProxyAgent();
-            const fetchOptions = {
+            const fetchOptions: any = {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -234,7 +234,7 @@ async function runBatchTest() {
     }
 }
 
-module.exports = {
+export {
     testSingleKey,
     runBatchTest
 };

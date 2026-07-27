@@ -1,4 +1,4 @@
-const dbModule = require('../db/index.ts');
+import * as dbModule from '../db/index.js';
 
 // --- Helper Functions for DB Interaction ---
 
@@ -21,7 +21,7 @@ const getDbInstance = () => {
  * @param {Array} params Query parameters.
  * @returns {Promise<object>} Promise resolving with { lastID, changes } or rejecting with error.
  */
-const runDb = (sql, params = []) => {
+const runDb = (sql, params = []): Promise<any> => {
     return new Promise((resolve, reject) => {
         const db = getDbInstance();
         db.run(sql, params, function (err) { // Use function() to access this context
@@ -42,7 +42,7 @@ const runDb = (sql, params = []) => {
  * @param {Array} params Query parameters.
  * @returns {Promise<object|null>} Promise resolving with the row or null, or rejecting with error.
  */
-const getDb = (sql, params = []) => {
+const getDb = (sql, params = []): Promise<any> => {
     return new Promise((resolve, reject) => {
         const db = getDbInstance();
         db.get(sql, params, (err, row) => {
@@ -63,7 +63,7 @@ const getDb = (sql, params = []) => {
  * @param {Array} params Query parameters.
  * @returns {Promise<Array>} Promise resolving with an array of rows or rejecting with error.
  */
-const allDb = (sql, params = []) => {
+const allDb = (sql, params = []): Promise<any[]> => {
     return new Promise((resolve, reject) => {
         const db = getDbInstance();
         db.all(sql, params, (err, rows) => {
@@ -78,14 +78,14 @@ const allDb = (sql, params = []) => {
 };
 
 // Simple queue for serializing database operations
-let dbOperationQueue = Promise.resolve();
+let dbOperationQueue: Promise<any> = Promise.resolve();
 
 /**
  * Executes a series of database operations sequentially.
  * @param {Function} callback A function that performs async operations.
  * @returns {Promise<any>} Returns the result of the callback function.
  */
-const serializeDb = (callback) => {
+const serializeDb = <T = any>(callback: () => Promise<T>): Promise<T> => {
     // Chain the operation to the queue
     dbOperationQueue = dbOperationQueue.then(async () => {
         try {
@@ -97,7 +97,7 @@ const serializeDb = (callback) => {
         }
     });
 
-    return dbOperationQueue;
+    return dbOperationQueue as Promise<T>;
 };
 
 // --- Settings Management (Generic Key-Value) ---
@@ -108,7 +108,7 @@ const serializeDb = (callback) => {
  * @param {any} [defaultValue=null] Value to return if key not found.
  * @returns {Promise<any>} The setting value (parsed if JSON) or defaultValue.
  */
-async function getSetting(key, defaultValue = null) {
+async function getSetting(key, defaultValue: any = null): Promise<any> {
     const row = await getDb('SELECT value FROM settings WHERE key = ?', [key]);
     if (!row) {
         return defaultValue;
@@ -171,9 +171,9 @@ async function setSetting(key, value, skipSync = false, useTransaction = false) 
  * Gets the entire models configuration object.
  * @returns {Promise<Record<string, {category: string, dailyQuota?: number, individualQuota?: number}>>}
  */
-async function getModelsConfig() {
+async function getModelsConfig(): Promise<Record<string, any>> {
     const rows = await allDb('SELECT * FROM models_config');
-    const config = {};
+    const config: Record<string, any> = {};
     rows.forEach(row => {
         config[row.model_id] = {
             category: row.category,
@@ -267,7 +267,7 @@ async function deleteModelConfig(modelId) {
  * Gets the category quotas (Pro/Flash).
  * @returns {Promise<{proQuota: number, flashQuota: number}>}
  */
-async function getCategoryQuotas() {
+async function getCategoryQuotas(): Promise<{ proQuota: number; flashQuota: number }> {
     // Retrieve from settings table, providing defaults
     const quotas = await getSetting('category_quotas', { proQuota: 50, flashQuota: 1500 });
     // Ensure the retrieved value has the expected format
@@ -486,27 +486,21 @@ async function setGitHubConfig(repo, token, dbPath = './database.db', encryptKey
 }
 
 
-module.exports = {
-    // Settings
+export {
     getSetting,
     setSetting,
-    // GitHub
     getGitHubConfig,
     setGitHubConfig,
-    // Models
     getModelsConfig,
     setModelConfig,
     deleteModelConfig,
-    // Category Quotas
     getCategoryQuotas,
     setCategoryQuotas,
-    // Worker Keys
     getAllWorkerKeys,
     getWorkerKeySafetySetting,
     addWorkerKey,
     updateWorkerKeySafety,
     deleteWorkerKey,
-    // DB helpers (optional export if needed elsewhere)
     runDb,
     getDb,
     allDb,

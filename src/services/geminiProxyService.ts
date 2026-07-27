@@ -1,11 +1,11 @@
-const fetch = require('node-fetch');
-const { Readable } = require('stream');
-const { URL } = require('url'); // Import URL for parsing remains relevant for potential future URL parsing
-const dbModule = require('../db/index.ts');
-const configService = require('./configService.ts');
-const geminiKeyService = require('./geminiKeyService.ts');
-const transformUtils = require('../utils/transform.ts');
-const proxyPool = require('../utils/proxyPool.ts'); // Import the new proxy pool module
+import fetch from 'node-fetch';
+import { Readable } from 'node:stream';
+import { URL } from 'node:url'; // Import URL for parsing remains relevant for potential future URL parsing
+import * as dbModule from '../db/index.js';
+import * as configService from './configService.js';
+import * as geminiKeyService from './geminiKeyService.js';
+import * as transformUtils from '../utils/transform.js';
+import * as proxyPool from '../utils/proxyPool.js'; // Import the new proxy pool module
 
 
 // Base Gemini API URL
@@ -45,7 +45,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
     let modelInfo;
     let modelCategory;
     let isSafetyEnabled;
-    let modelsConfig;
+    let modelsConfig: Record<string, any>;
     let MAX_RETRIES;
     let keepAliveEnabled;
 
@@ -133,7 +133,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     return { error: { message: "Request must contain at least one user or assistant message." }, status: 400 };
                 }
 
-                const geminiRequestBody = {
+                const geminiRequestBody: any = {
                     contents: contents,
                     generationConfig: {
                         ...(openAIRequestBody.temperature !== undefined && { temperature: openAIRequestBody.temperature }),
@@ -209,7 +209,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     }
                 }
 
-                const fetchOptions = { // Create options object
+                const fetchOptions: any = { // Create options object
                     method: 'POST',
                     headers: geminiRequestHeaders,
                     body: JSON.stringify(geminiRequestBody),
@@ -432,7 +432,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
     }
 }
 
-module.exports = {
+export {
     proxyChatCompletions,
     // getProxyPoolStatus is no longer needed here, it's in proxyPool.js
 };

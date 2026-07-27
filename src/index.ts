@@ -1,33 +1,34 @@
 // Load environment variables from .env file FIRST
-require('dotenv').config();
+import 'dotenv/config';
 
-const express = require('express');
-const path = require('path');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
+import express from 'express';
+import path from 'node:path';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
 
 // Import the database module (this will also trigger initialization)
-const dbModule = require('./db/index.ts');
+import './db/index.js';
 
 // Import Vertex service but don't initialize yet - will be done after DB is ready
-const vertexService = require('./services/vertexProxyService.ts');
+import * as vertexService from './services/vertexProxyService.js';
 
 // Note: schedulerService is imported lazily in routes/adminApi.ts to avoid database initialization issues
 
 // Import route handlers
-const authRoutes = require('./routes/auth.ts');
-const adminApiRoutes = require('./routes/adminApi.ts');
-const apiV1Routes = require('./routes/apiV1.ts');
+import authRoutes from './routes/auth.js';
+import adminApiRoutes from './routes/adminApi.js';
+import apiV1Routes from './routes/apiV1.js';
 
 // Import services and utils (ensure proxyPool is imported to trigger its initialization)
-require('./services/geminiProxyService.ts'); // Still need to import this for other initializations if any
-const proxyPool = require('./utils/proxyPool.ts');
+import './services/geminiProxyService.js'; // Still need to import this for other initializations if any
+import * as proxyPool from './utils/proxyPool.js';
 
 // Import middleware
-const requireAdminAuth = require('./middleware/adminAuth.ts');
+import requireAdminAuth from './middleware/adminAuth.js';
 
 const app = express();
-const port = process.env.PORT || 3000; // Default to 3000 if PORT not set
+const port = Number(process.env.PORT || 3000); // Default to 3000 if PORT not set
+const projectRoot = process.cwd();
 
 // --- Middleware ---
 
@@ -53,8 +54,7 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cookieParser());
 
 // Serve static files from the 'public' directory
-// __dirname now refers to the src directory, need to go up one level
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(projectRoot, 'public')));
 
 // --- Basic Routes ---
 
@@ -73,7 +73,7 @@ app.get('/admin', requireAdminAuth, (req, res) => {
     res.redirect('/admin/'); // Redirect to the directory path
 });
 
-app.use('/admin', requireAdminAuth, express.static(path.join(__dirname, '..', 'public', 'admin')));
+app.use('/admin', requireAdminAuth, express.static(path.join(projectRoot, 'public', 'admin')));
 
 // --- API Routes ---
 app.use('/api', authRoutes);

@@ -1,4 +1,4 @@
-const { verifySessionCookie } = require('../utils/session.ts');
+import { verifySessionCookie } from '../utils/session.js';
 
 /**
  * Express middleware to protect routes requiring admin authentication.
@@ -34,5 +34,5 @@ async function requireAdminAuth(req, res, next) {
     }
 }
 
-module.exports = requireAdminAuth;
+export default requireAdminAuth;
 

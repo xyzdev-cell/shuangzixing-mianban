@@ -1,14 +1,14 @@
 // src/routes/apiV1.ts
 
-const express = require('express');
-const { Readable, Transform } = require('stream'); // For handling streams and transforming
-const requireWorkerAuth = require('../middleware/workerAuth.ts');
-const geminiProxyService = require('../services/geminiProxyService.ts');
-const configService = require('../services/configService.ts'); // For /v1/models
-const transformUtils = require('../utils/transform.ts');
+import express from 'express';
+import { Readable, Transform } from 'node:stream'; // For handling streams and transforming
+import requireWorkerAuth from '../middleware/workerAuth.js';
+import * as geminiProxyService from '../services/geminiProxyService.js';
+import * as configService from '../services/configService.js'; // For /v1/models
+import * as transformUtils from '../utils/transform.js';
 
 // Import vertexProxyService, which now includes manual loading logic
-const vertexProxyService = require('../services/vertexProxyService.ts');
+import * as vertexProxyService from '../services/vertexProxyService.js';
 
 const router = express.Router();
 
@@ -158,7 +158,6 @@ router.post('/chat/completions', async (req, res, next) => {
 
         if (useKeepAlive) {
             // Set up KEEPALIVE heartbeat management
-            const { Readable } = require('stream');
             const keepAliveSseStream = new Readable({ read() {} });
             let keepAliveTimerId = null;
             let isConnectionClosed = false;
@@ -363,7 +362,6 @@ router.post('/chat/completions', async (req, res, next) => {
                     };
 
                     // Use the existing stream to send error
-                    const { Readable } = require('stream');
                     const errorStream = new Readable({ read() {} });
                     errorStream.pipe(res);
                     errorStream.push(`data: ${JSON.stringify(errorPayload)}\n\n`);
@@ -803,5 +801,5 @@ router.post('/chat/completions', async (req, res, next) => {
     }
 });
 
-module.exports = router;
+export default router;
 

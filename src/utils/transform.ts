@@ -140,9 +140,9 @@ function transformOpenAiToGemini(requestBody, requestedModelId, isSafetyEnabled 
 	}
 
 	// 3. Transform Tool Choice to Tool Config
-	let toolConfig = undefined;
+	let toolConfig: any = undefined;
 	if (openAiToolChoice && geminiTools && geminiTools.length > 0) {
-		const functionCallingConfig = {};
+		const functionCallingConfig: any = {};
 
 		if (typeof openAiToolChoice === 'string') {
 			switch (openAiToolChoice) {
@@ -281,7 +281,7 @@ function transformGeminiStreamChunk(geminiChunk, modelId, state) {
 
 
 		// Construct the delta part for the OpenAI chunk
-		const delta = {};
+		const delta: any = {};
         // Include role only if there's actual content or tool calls in this chunk
         if (candidate.content?.role && (contentText !== null || (toolCalls && toolCalls.length > 0))) {
             delta.role = candidate.content.role === 'model' ? 'assistant' : candidate.content.role;
@@ -434,7 +434,7 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 
 
 		// Construct the OpenAI message object
-		const message = { role: "assistant" };
+		const message: any = { role: "assistant" };
         if (toolCalls && toolCalls.length > 0) {
              message.tool_calls = toolCalls;
              // IMPORTANT: Set content to null if only tool calls exist, otherwise include text
@@ -497,7 +497,7 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 }
 
 
-module.exports = {
+export {
     parseDataUri,
     transformOpenAiToGemini,
     createStreamState,

@@ -1,12 +1,13 @@
-const fetch = require('node-fetch');
-const { Readable, Transform } = require('stream'); // Import Transform
-const fs = require('fs').promises; // Async fs for temp file operations
-const os = require('os');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const { GoogleGenAI } = require('@google/genai');
-const configService = require('./configService.ts');
-const transformUtils = require('../utils/transform.ts');
+import fetch from 'node-fetch';
+import { Readable, Transform } from 'node:stream'; // Import Transform
+import { promises as fs } from 'node:fs'; // Async fs for temp file operations
+import os from 'node:os';
+import path from 'node:path';
+import { v4 as uuidv4 } from 'uuid';
+import { GoogleGenAI } from '@google/genai';
+import * as mime from 'mime-types';
+import * as configService from './configService.js';
+import * as transformUtils from '../utils/transform.js';
 
 // List of Vertex AI supported models (prefix [v] indicates it's a Vertex API model)
 const VERTEX_SUPPORTED_MODELS = [
@@ -212,7 +213,6 @@ async function convertOpenaiPartsToVertexParts(openAIContentParts) {
                 }
             } else if (imageUrl.startsWith('gs://')) {
                 // Handle Google Cloud Storage URIs
-                const mime = require('mime-types'); // Lazy require mime-types
                 vertexParts.push({
                     fileData: {
                         mimeType: mime.lookup(imageUrl) || 'application/octet-stream',
@@ -1003,7 +1003,6 @@ async function reinitializeWithDatabaseConfig() {
     // Clean up existing credentials file if it exists
     if (tempCredentialsPath) {
         try {
-            const fs = require('fs').promises;
             await fs.unlink(tempCredentialsPath);
             console.log("Cleaned up previous credentials file");
         } catch (error) {
@@ -1021,7 +1020,7 @@ async function reinitializeWithDatabaseConfig() {
     console.log("Vertex AI reinitialization completed");
 }
 
-module.exports = {
+export {
     proxyVertexChatCompletions,
     getVertexSupportedModels,
     isVertexEnabled, // Export check function

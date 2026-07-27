@@ -1,9 +1,22 @@
-const { Octokit } = require('@octokit/rest');
-const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+import { Octokit } from '@octokit/rest';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 
 class GitHubSync {
+  repoName: string;
+  token: string;
+  dbPath: string;
+  encryptKey: string | null;
+  owner = '';
+  repo = '';
+  isValid = false;
+  octokit: any = null;
+  initialSyncCompleted = false;
+  pendingSync = false;
+  syncTimer: NodeJS.Timeout | null = null;
+  syncDelay = 5000;
+
   constructor(repoName, token, dbPath, encryptKey) {
     this.repoName = repoName;
     this.token = token;
@@ -333,5 +346,5 @@ class GitHubSync {
   }
 }
 
-module.exports = GitHubSync;
+export default GitHubSync;
 

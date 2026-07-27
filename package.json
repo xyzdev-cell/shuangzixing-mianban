@@ -1,10 +1,13 @@
 {
   "name": "jimihub",
   "version": "1.0.0",
-  "main": "src/index.ts",
+  "type": "module",
+  "main": "dist/src/index.js",
   "scripts": {
-    "test": "node --experimental-strip-types scripts/smoke-start.ts",
-    "start": "node --experimental-strip-types src/index.ts"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.frontend.json",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.frontend.json --noEmit",
+    "test": "npm run build && node dist/scripts/smoke-start.js",
+    "start": "npm run build && node dist/src/index.js"
   },
   "engines": {
     "node": ">=22.6.0"
@@ -29,6 +32,14 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1"
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^26.1.1",
+    "@types/node-cron": "^3.0.11",
+    "@types/node-fetch": "^2.6.13",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^7.0.2"
   }
 }

@@ -1,10 +1,4 @@
-let SocksProxyAgent; // Declare variable
-try {
-    SocksProxyAgent = require('socks-proxy-agent').SocksProxyAgent; // Try importing
-} catch (e) {
-    console.warn("Optional dependency 'socks-proxy-agent' not found. SOCKS5 proxy functionality will be unavailable unless this dependency is installed.");
-    SocksProxyAgent = null; // Set to null if import fails
-}
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
 let proxies = [];
 let currentProxyIndex = 0;
@@ -39,7 +33,7 @@ function initializeProxyPool() {
     }
 }
 
-function getNextProxyAgent() {
+function getNextProxyAgent(): any {
     if (proxies.length === 0 || !SocksProxyAgent) {
         return undefined; // No proxies configured or agent not available
     }
@@ -68,7 +62,7 @@ function getProxyPoolStatus() {
 // Initialize the proxy pool when the module loads
 initializeProxyPool();
 
-module.exports = {
+export {
     initializeProxyPool, // Export for potential re-initialization if needed
     getNextProxyAgent,
     getProxyPoolStatus,

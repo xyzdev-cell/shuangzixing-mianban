@@ -174,3 +174,4 @@ dist
 # IDE
 .idea/
 .claude/
+dist/

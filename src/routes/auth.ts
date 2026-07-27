@@ -1,6 +1,6 @@
-const express = require('express');
-const { generateSessionToken, setSessionCookie, clearSessionCookie } = require('../utils/session.ts');
-const { readRequestBody } = require('../utils/helpers.ts'); // Although body-parser is used, keep for consistency
+import express from 'express';
+import { generateSessionToken, setSessionCookie, clearSessionCookie } from '../utils/session.js';
+import { readRequestBody } from '../utils/helpers.js'; // Although body-parser is used, keep for consistency
 
 const router = express.Router();
 
@@ -50,7 +50,7 @@ router.post('/login', async (req, res, next) => {
 
 // --- Logout Route ---
 // Path: /api/logout (mounted under /api in the server entrypoint)
-router.post('/logout', (req, res) => {
+router.post('/logout', (req, res, next) => {
     try {
         clearSessionCookie(res); // Clear the cookie
         console.log('Admin logout successful.');
@@ -64,5 +64,5 @@ router.post('/logout', (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;
 

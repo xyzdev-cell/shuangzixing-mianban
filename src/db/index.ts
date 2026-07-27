@@ -1,7 +1,9 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
-const GitHubSync = require('../utils/githubSync.ts');
+import sqlite3Module from 'sqlite3';
+import path from 'node:path';
+import fs from 'node:fs';
+import GitHubSync from '../utils/githubSync.js';
+
+const sqlite3 = sqlite3Module.verbose();
 
 // Construct the database path
 let dataDir;
@@ -11,7 +13,7 @@ if (process.env.HUGGING_FACE === '1') {
   dataDir = '/home/user/data';
   console.log(`Using Hugging Face persistent data directory: ${dataDir}`);
 } else {
-  dataDir = path.resolve(__dirname, '..', '..', 'data');
+  dataDir = path.resolve(process.cwd(), 'data');
 }
 
 if (!fs.existsSync(dataDir)) {
@@ -21,7 +23,7 @@ if (!fs.existsSync(dataDir)) {
   } catch (err) {
     console.error(`Error creating data directory: ${err.message}`);
     console.error('Will attempt to use ./data as fallback');
-    dataDir = path.resolve(__dirname, '..', '..', 'data');
+    dataDir = path.resolve(process.cwd(), 'data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
@@ -117,7 +119,7 @@ async function initializeDatabase() {
 
         // Initialize database schema
         try {
-          await new Promise((schemaResolve, schemaReject) => {
+          await new Promise<void>((schemaResolve, schemaReject) => {
             // Pass the current database instance to the schema initialization function
             initializeDatabaseSchemaInternal.call({ db: db }, (schemaErr) => {
               if (schemaErr) schemaReject(schemaErr);
@@ -144,7 +146,7 @@ initializeDatabase()
 
     // Initialize Vertex service after database is ready and exported
     try {
-      const vertexService = require('../services/vertexProxyService.ts');
+      const vertexService = await import('../services/vertexProxyService.js');
       console.log('Initializing Vertex AI service after database setup...');
       await vertexService.initializeVertexCredentials();
     } catch (err) {
@@ -153,7 +155,7 @@ initializeDatabase()
 
     // Initialize scheduler service after database is ready
     try {
-      const schedulerService = require('../services/schedulerService.ts');
+      const { default: schedulerService } = await import('../services/schedulerService.js');
       console.log('Initializing Scheduler Service after database setup...');
       await schedulerService.initialize();
       console.log('Scheduler Service: Initialized successfully');
@@ -280,8 +282,5 @@ process.on('SIGTERM', () => {
 });
 
 // Export the database connection instance and sync functions
-module.exports = {
-  get db() { return db; }, // Use getter to ensure db is available when accessed
-  syncToGitHub
-};
+export { db, syncToGitHub };
 
