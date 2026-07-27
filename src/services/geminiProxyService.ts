@@ -30,6 +30,14 @@ function shouldMark400Error(errorObject) {
     }
 }
 
+function isWebSearchRequested(value) {
+    return value === true || value === 1 || value === '1';
+}
+
+function supportsBuiltInToolCombination(modelId) {
+    return /^gemini-[3-9]/.test(modelId);
+}
+
 async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thinkingBudget, keepAliveCallback = null) {
     const requestedModelId = openAIRequestBody?.model;
 
@@ -65,6 +73,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
         // 1. Via web_search parameter or 2. Using a model ending with -search
         const isSearchModel = requestedModelId.endsWith('-search');
         const actualModelId = isSearchModel ? requestedModelId.replace('-search', '') : requestedModelId;
+        const useWebSearch = isWebSearchRequested(openAIRequestBody.web_search) || isSearchModel;
 
         // If KEEPALIVE is enabled, this is a streaming request, and safety is disabled, we'll handle it specially
         const useKeepAlive = keepAliveEnabled && stream && !isSafetyEnabled;
@@ -123,7 +132,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                 console.log(`Attempt ${attempt}: Proxying request for model: ${requestedModelId}, Category: ${modelCategory}, KeyID: ${selectedKey.id}, Safety: ${isSafetyEnabled}`);
 
                 // 3. Transform Request Body (includes tool_choice support)
-                const { contents, systemInstruction, tools: geminiTools, toolConfig } = transformUtils.transformOpenAiToGemini(
+                let { contents, systemInstruction, tools: geminiTools, toolConfig } = transformUtils.transformOpenAiToGemini(
                     openAIRequestBody,
                     requestedModelId,
                     isSafetyEnabled // Pass safety setting to transformer
@@ -131,6 +140,12 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
 
                 if (contents.length === 0 && !systemInstruction) {
                     return { error: { message: "Request must contain at least one user or assistant message." }, status: 400 };
+                }
+
+                if (useWebSearch && geminiTools && !supportsBuiltInToolCombination(actualModelId)) {
+                    console.warn(`Model ${actualModelId} does not support combining Google Search with function declarations. Dropping custom tools for search request.`);
+                    geminiTools = undefined;
+                    toolConfig = undefined;
                 }
 
                 const geminiRequestBody: any = {
@@ -147,7 +162,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     ...(systemInstruction && { systemInstruction: systemInstruction }),
                 };
 
-                if (openAIRequestBody.web_search === 1 || isSearchModel) {
+                if (useWebSearch) {
                     console.log(`Web search enabled for this request (${isSearchModel ? 'model-based' : 'parameter-based'})`);
                     
                     // Create Google Search tool

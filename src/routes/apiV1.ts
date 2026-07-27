@@ -15,10 +15,20 @@ const router = express.Router();
 // Apply worker authentication middleware to all /v1 routes
 router.use(requireWorkerAuth);
 
+function getSearchModelIds(modelIds: string[]) {
+    return modelIds
+        .filter(modelId =>
+            /^gemini-[2-9]/.test(modelId) &&
+            !modelId.endsWith('-search')
+        )
+        .map(modelId => `${modelId}-search`);
+}
+
 // --- /v1/models ---
 router.get('/models', async (req, res, next) => {
     try {
         const modelsConfig = await configService.getModelsConfig();
+        const configuredModelIds = Object.keys(modelsConfig);
         let modelsData = Object.keys(modelsConfig).map(modelId => ({
             id: modelId,
             object: "model",
@@ -28,20 +38,14 @@ router.get('/models', async (req, res, next) => {
         }));
 
         // Check if web search is enabled
-        const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
-        console.log('webSearchEnabled', await configService.getSetting('web_search'), webSearchEnabled);
+        const webSearchSetting = await configService.getSetting('web_search', '0');
+        const webSearchEnabled = String(webSearchSetting) === '1';
         // Add search versions for gemini-2.0+ series models only if web search is enabled
         let searchModels = [];
         if (webSearchEnabled) {
-            searchModels = Object.keys(modelsConfig)
-                .filter(modelId =>
-                    // Match gemini-2.x, gemini-3-xxx, etc. series models (version 2+)
-                    /^gemini-[2-9]/.test(modelId) &&
-                    // Exclude models that are already search versions
-                    !modelId.endsWith('-search')
-                )
-                .map(modelId => ({
-                    id: `${modelId}-search`,
+            searchModels = getSearchModelIds(configuredModelIds)
+                .map(searchModelId => ({
+                    id: searchModelId,
                     object: "model",
                     created: Math.floor(Date.now() / 1000),
                     owned_by: "google",
@@ -49,7 +53,7 @@ router.get('/models', async (req, res, next) => {
         }
 
         // Add non-thinking versions for gemini-2.5-flash-preview models
-        const nonThinkingModels = Object.keys(modelsConfig)
+        const nonThinkingModels = configuredModelIds
             .filter(modelId =>
                 // Currently only gemini-2.5-flash-preview supports thinkingBudget
                 modelId.includes('gemini-2.5-flash-preview') &&
@@ -97,19 +101,17 @@ router.post('/chat/completions', async (req, res, next) => {
         // --- Model Validation Step ---
         // Get all available models to validate against the request
         const modelsConfig = await configService.getModelsConfig();
-        let enabledModels = Object.keys(modelsConfig);
+        const configuredModelIds = Object.keys(modelsConfig);
+        let enabledModels = [...configuredModelIds];
 
         // Add search versions if web search is enabled
         const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
         if (webSearchEnabled) {
-            const searchModels = Object.keys(modelsConfig)
-                .filter(modelId => /^gemini-[2-9]/.test(modelId) && !modelId.endsWith('-search'))
-                .map(modelId => `${modelId}-search`);
-            enabledModels = [...enabledModels, ...searchModels];
+            enabledModels = [...enabledModels, ...getSearchModelIds(configuredModelIds)];
         }
 
         // Add non-thinking versions
-        const nonThinkingModels = Object.keys(modelsConfig)
+        const nonThinkingModels = configuredModelIds
             .filter(modelId => modelId.includes('gemini-2.5-flash-preview') && !modelId.endsWith(':non-thinking'))
             .map(modelId => `${modelId}:non-thinking`);
         enabledModels = [...enabledModels, ...nonThinkingModels];

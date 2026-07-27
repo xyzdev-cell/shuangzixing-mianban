@@ -1,6 +1,7 @@
 import * as dbModule from '../db/index.js';
 import * as configService from './configService.js'; // Use configService for DB helpers and settings
 import { getTodayInLA } from '../utils/helpers.js';
+import { maskSensitiveValue } from '../utils/secrets.js';
 import crypto from 'node:crypto'; // For generating key IDs
 
 // --- Gemini Key CRUD Operations ---
@@ -128,7 +129,7 @@ async function addMultipleGeminiKeys(apiKeys) {
                 try {
                     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
                         results.push({
-                            key: apiKey,
+                            key: maskSensitiveValue(apiKey),
                             success: false,
                             error: 'Invalid API key provided.'
                         });
@@ -157,7 +158,7 @@ async function addMultipleGeminiKeys(apiKeys) {
                     newKeyIds.push(keyId);
 
                     results.push({
-                        key: trimmedApiKey,
+                        key: maskSensitiveValue(trimmedApiKey),
                         success: true,
                         id: keyId,
                         name: keyName
@@ -169,19 +170,19 @@ async function addMultipleGeminiKeys(apiKeys) {
                 } catch (keyError) {
                     if (keyError.message.includes('UNIQUE constraint failed: gemini_keys.api_key')) {
                         results.push({
-                            key: apiKey,
+                            key: maskSensitiveValue(apiKey),
                             success: false,
                             error: 'Duplicate API key.'
                         });
                     } else {
                         results.push({
-                            key: apiKey,
+                            key: maskSensitiveValue(apiKey),
                             success: false,
                             error: keyError.message
                         });
                     }
                     failureCount++;
-                    console.error(`Error adding key ${apiKey}:`, keyError);
+                    console.error(`Error adding key ${maskSensitiveValue(apiKey)}:`, keyError);
                 }
             }
 
@@ -374,7 +375,7 @@ async function getAllGeminiKeysWithUsage() {
             return {
                 id: keyRow.id,
                 name: keyRow.name || keyRow.id,
-                keyPreview: `...${(keyRow.api_key || '').slice(-4)}`,
+                keyPreview: maskSensitiveValue(keyRow.api_key || ''),
                 usage: displayTotalUsage, // Display calculated total usage
                 usageDate: keyRow.usage_date || 'N/A',
                 modelUsage: displayModelUsage,

@@ -2217,7 +2217,7 @@ async function renderGeminiKeys(keys) {
         if (config.expressApiKey) {
             vertexConfigInfo.innerHTML = `
                 <p><strong data-i18n="auth_mode"></strong>: <span data-i18n="express_mode"></span></p>
-                <p><strong data-i18n="api_key"></strong>: ${config.expressApiKey.substring(0, 10)}...${config.expressApiKey.substring(config.expressApiKey.length - 4)}</p>
+                <p><strong data-i18n="api_key"></strong>: ${config.expressApiKey}</p>
             `;
 
             // Don't populate form fields when displaying existing config

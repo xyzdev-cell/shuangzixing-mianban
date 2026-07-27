@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { maskSensitiveValue } from './secrets.js';
 
 class GitHubSync {
   repoName: string;
@@ -41,7 +42,7 @@ class GitHubSync {
 
     // Log if encryption is enabled with a valid key
     if (this.isConfigured() && this.isEncryptionEnabled()) {
-      console.log(`Using encrypt key: ${this.encryptKey}`);
+      console.log(`Using encrypt key: ${maskSensitiveValue(this.encryptKey)}`);
     }
 
     this.initialSyncCompleted = false;

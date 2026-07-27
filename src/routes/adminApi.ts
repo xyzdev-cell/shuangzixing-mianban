@@ -8,6 +8,7 @@ import * as batchTestService from '../services/batchTestService.js';
 import fetch from 'node-fetch';
 import * as dbModule from '../db/index.js';
 import * as proxyPool from '../utils/proxyPool.js'; // Import the proxy pool module
+import { maskSensitiveValue } from '../utils/secrets.js';
 const router = express.Router();
 
 // Apply admin authentication middleware to all /api/admin routes
@@ -518,6 +519,12 @@ router.route('/vertex-config')
     .get(async (req, res, next) => {
         try {
             const config = await configService.getSetting('vertex_config', null);
+            if (config?.expressApiKey) {
+                return res.json({
+                    ...config,
+                    expressApiKey: maskSensitiveValue(config.expressApiKey),
+                });
+            }
             res.json(config);
         } catch (error) {
             next(error);
