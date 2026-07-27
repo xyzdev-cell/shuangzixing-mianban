@@ -175,3 +175,9 @@ dist
 .idea/
 .claude/
 dist/
+
+# Local runtime database
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite3
