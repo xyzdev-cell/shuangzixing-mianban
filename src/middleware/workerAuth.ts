@@ -9,10 +9,17 @@ import * as dbModule from '../db/index.js'; // Import the database module
  */
 async function requireWorkerAuth(req, res, next) {
     const authHeader = req.headers.authorization;
-    const workerApiKey = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const headerApiKey = req.headers['x-goog-api-key'];
+    const queryApiKey = req.query?.key;
+    const rawWorkerApiKey = authHeader?.startsWith('Bearer ')
+        ? authHeader.substring(7)
+        : Array.isArray(headerApiKey)
+            ? headerApiKey[0]
+            : headerApiKey || (Array.isArray(queryApiKey) ? queryApiKey[0] : queryApiKey);
+    const workerApiKey = typeof rawWorkerApiKey === 'string' ? rawWorkerApiKey.trim() : null;
 
     if (!workerApiKey) {
-        return res.status(401).json({ error: 'Missing API key. Provide it in the Authorization header as "Bearer YOUR_KEY".' });
+        return res.status(401).json({ error: 'Missing API key. Provide it as "Authorization: Bearer YOUR_KEY", "x-goog-api-key: YOUR_KEY", or "?key=YOUR_KEY".' });
     }
 
     try {

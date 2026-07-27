@@ -18,6 +18,7 @@ import * as vertexService from './services/vertexProxyService.js';
 import authRoutes from './routes/auth.js';
 import adminApiRoutes from './routes/adminApi.js';
 import apiV1Routes from './routes/apiV1.js';
+import geminiNativeRoutes from './routes/geminiNative.js';
 
 // Import services and utils (ensure proxyPool is imported to trigger its initialization)
 import './services/geminiProxyService.js'; // Still need to import this for other initializations if any
@@ -37,7 +38,7 @@ app.use(cors({
     origin: '*', // Allow all origins for now
     credentials: true, // Allow cookies for authenticated requests (like admin UI)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-goog-api-key'],
     maxAge: 86400 // Cache preflight requests for 1 day
 }));
 
@@ -79,6 +80,7 @@ app.use('/admin', requireAdminAuth, express.static(path.join(projectRoot, 'publi
 app.use('/api', authRoutes);
 app.use('/api/admin', requireAdminAuth, adminApiRoutes);
 app.use('/v1', apiV1Routes);
+app.use('/v1beta', geminiNativeRoutes);
 
 // --- Global Error Handler ---
 app.use((err, req, res, next) => {

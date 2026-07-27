@@ -38,6 +38,139 @@ function supportsBuiltInToolCombination(modelId) {
     return /^gemini-[3-9]/.test(modelId);
 }
 
+function supportsThinkingConfig(modelId) {
+    return /^gemini-(2\.5|[3-9])/.test(modelId);
+}
+
+function isGemini3OrLater(modelId) {
+    return /^gemini-[3-9]/.test(modelId);
+}
+
+function normalizeReasoningEffort(value) {
+    if (typeof value !== 'string') return undefined;
+    const normalized = value.toLowerCase();
+    if (['none', 'minimal', 'low', 'medium', 'high'].includes(normalized)) {
+        return normalized;
+    }
+    return undefined;
+}
+
+function mapReasoningEffortToThinkingBudget(effort) {
+    switch (effort) {
+        case 'none':
+            return 0;
+        case 'minimal':
+            return 512;
+        case 'low':
+            return 1024;
+        case 'medium':
+            return 4096;
+        case 'high':
+            return 8192;
+        default:
+            return undefined;
+    }
+}
+
+function mapReasoningEffortToThinkingLevel(effort) {
+    switch (effort) {
+        case 'none':
+        case 'minimal':
+            return 'MINIMAL';
+        case 'low':
+            return 'LOW';
+        case 'medium':
+            return 'MEDIUM';
+        case 'high':
+            return 'HIGH';
+        default:
+            return undefined;
+    }
+}
+
+function normalizeThinkingConfig(config) {
+    if (!config || typeof config !== 'object') return undefined;
+
+    const normalized: any = {};
+    const thinkingBudget = config.thinkingBudget ?? config.thinking_budget;
+    const thinkingLevel = config.thinkingLevel ?? config.thinking_level;
+    const includeThoughts = config.includeThoughts ?? config.include_thoughts;
+
+    if (typeof thinkingBudget === 'number') {
+        normalized.thinkingBudget = thinkingBudget;
+    }
+    if (typeof thinkingLevel === 'string') {
+        normalized.thinkingLevel = thinkingLevel.toUpperCase();
+    }
+    if (typeof includeThoughts === 'boolean') {
+        normalized.includeThoughts = includeThoughts;
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function buildThinkingConfig(requestBody, modelId, forcedThinkingBudget) {
+    if (!supportsThinkingConfig(modelId)) {
+        return undefined;
+    }
+
+    if (forcedThinkingBudget !== undefined) {
+        return { thinkingBudget: forcedThinkingBudget, includeThoughts: false };
+    }
+
+    const directConfig = normalizeThinkingConfig(
+        requestBody.thinkingConfig ||
+        requestBody.thinking_config ||
+        requestBody.generationConfig?.thinkingConfig ||
+        requestBody.generation_config?.thinking_config
+    );
+    if (directConfig) {
+        return directConfig;
+    }
+
+    const thinking = requestBody.thinking;
+    if (thinking && typeof thinking === 'object') {
+        const type = typeof thinking.type === 'string' ? thinking.type.toLowerCase() : undefined;
+        if (type === 'disabled' || type === 'none') {
+            return { thinkingBudget: 0, includeThoughts: false };
+        }
+
+        const budgetTokens = thinking.budget_tokens ?? thinking.budgetTokens;
+        const includeThoughts = thinking.include_thoughts ?? thinking.includeThoughts ?? type === 'enabled';
+        const config: any = {};
+        if (typeof budgetTokens === 'number') {
+            config.thinkingBudget = budgetTokens;
+        }
+        if (typeof includeThoughts === 'boolean') {
+            config.includeThoughts = includeThoughts;
+        }
+        if (Object.keys(config).length > 0) {
+            return config;
+        }
+    }
+
+    const reasoningEffort = normalizeReasoningEffort(requestBody.reasoning_effort);
+    if (reasoningEffort) {
+        if (isGemini3OrLater(modelId)) {
+            return {
+                thinkingLevel: mapReasoningEffortToThinkingLevel(reasoningEffort),
+                includeThoughts: reasoningEffort !== 'none',
+            };
+        }
+
+        return {
+            thinkingBudget: mapReasoningEffortToThinkingBudget(reasoningEffort),
+            includeThoughts: reasoningEffort !== 'none',
+        };
+    }
+
+    if (requestBody.include_reasoning === true || requestBody.return_reasoning === true) {
+        return { includeThoughts: true };
+    }
+
+    return undefined;
+}
+
 async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thinkingBudget, keepAliveCallback = null) {
     const requestedModelId = openAIRequestBody?.model;
 
@@ -148,6 +281,8 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     toolConfig = undefined;
                 }
 
+                const thinkingConfig = buildThinkingConfig(openAIRequestBody, actualModelId, thinkingBudget);
+
                 const geminiRequestBody: any = {
                     contents: contents,
                     generationConfig: {
@@ -155,7 +290,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                         ...(openAIRequestBody.top_p !== undefined && { topP: openAIRequestBody.top_p }),
                         ...(openAIRequestBody.max_tokens !== undefined && { maxOutputTokens: openAIRequestBody.max_tokens }),
                         ...(openAIRequestBody.stop && { stopSequences: Array.isArray(openAIRequestBody.stop) ? openAIRequestBody.stop : [openAIRequestBody.stop] }),
-                        ...(thinkingBudget !== undefined && { thinkingConfig: { thinkingBudget: thinkingBudget } }),
+                        ...(thinkingConfig && { thinkingConfig }),
                     },
                     ...(geminiTools && { tools: geminiTools }),
                     ...(toolConfig && { toolConfig: toolConfig }),
