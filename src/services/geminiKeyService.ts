@@ -91,9 +91,11 @@ async function addGeminiKey(apiKey, name) {
 /**
  * Adds multiple Gemini API keys in a single transaction for better performance.
  * @param {Array<string>} apiKeys Array of API keys to add.
+ * @param {string} [name] Optional base name for generated key names.
+ * @param {number} [nameOffset=0] Offset used when numbering generated key names.
  * @returns {Promise<{successCount: number, failureCount: number, results: Array<{key: string, success: boolean, id?: string, name?: string, error?: string}>}>}
  */
-async function addMultipleGeminiKeys(apiKeys) {
+async function addMultipleGeminiKeys(apiKeys, name, nameOffset = 0) {
     if (!Array.isArray(apiKeys) || apiKeys.length === 0) {
         throw new Error('Invalid API keys array provided.');
     }
@@ -101,6 +103,8 @@ async function addMultipleGeminiKeys(apiKeys) {
     const results = [];
     let successCount = 0;
     let failureCount = 0;
+    const baseName = (typeof name === 'string' && name.trim()) ? name.trim() : '';
+    const offset = Number.isInteger(Number(nameOffset)) && Number(nameOffset) > 0 ? Number(nameOffset) : 0;
 
     // Use serializeDb to ensure atomic operations
     return await configService.serializeDb(async () => {
@@ -143,7 +147,7 @@ async function addMultipleGeminiKeys(apiKeys) {
                     const timestamp = Date.now();
                     const randomString = crypto.randomBytes(4).toString('hex');
                     const keyId = `gk-${timestamp}-${randomString}`;
-                    const keyName = keyId;
+                    const keyName = baseName ? `${baseName} ${offset + successCount + 1}` : keyId;
 
                     const insertSQL = `
                         INSERT INTO gemini_keys

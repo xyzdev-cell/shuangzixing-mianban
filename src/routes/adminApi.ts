@@ -52,7 +52,7 @@ router.route('/gemini-keys')
 // --- Batch Add Gemini Keys --- (/api/admin/gemini-keys/batch)
 router.post('/gemini-keys/batch', async (req, res, next) => {
     try {
-        const { keys } = parseBody(req);
+        const { keys, name, nameOffset } = parseBody(req);
         if (!Array.isArray(keys) || keys.length === 0) {
             return res.status(400).json({ error: 'Request body must include a valid array of API keys' });
         }
@@ -63,7 +63,7 @@ router.post('/gemini-keys/batch', async (req, res, next) => {
             return res.status(400).json({ error: 'All API keys must be valid strings' });
         }
 
-        const result = await geminiKeyService.addMultipleGeminiKeys(keys);
+        const result = await geminiKeyService.addMultipleGeminiKeys(keys, name, nameOffset);
         res.status(201).json({
             success: true,
             ...result
@@ -662,7 +662,7 @@ router.route('/system-settings')
 
             // Validate inputs
             if (keepalive !== '0' && keepalive !== '1') {
-                return res.status(400).json({ error: 'KEEPALIVE must be "0" or "1"' });
+                return res.status(400).json({ error: 'PSEUDO_STREAM must be "0" or "1"' });
             }
 
             const maxRetryNum = parseInt(maxRetry);

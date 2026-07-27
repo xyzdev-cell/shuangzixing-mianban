@@ -1,11 +1,26 @@
-# 功能介绍: KEEPALIVE模式
+# 功能介绍: 伪流式模型
 
 ## Docker/Hugging Face Space/Node.js
 
-在网页设置中开启`KEEPALIVE`开关，可以启用KEEPALIVE响应模式。
+在网页设置中开启 `伪流式模型` 开关后，模型列表会额外显示带 `-pseudo-stream` 后缀的模型。
 
-启用KEEPALIVE模式后，使用流式请求到脚本，脚本会持续向客户端发送心跳响应以保持客户端的持续连接，防止客户端发生异常断开的情况。
+例如原始模型为 `gemini-2.5-flash`，开启后会额外显示：
 
-注意，当使用`KEEPALIVE`功能时，请确保使用的请求密钥(Worker Api Key)的安全设定为关闭(Disabled)，且在请求时使用流式响应。
-`KEEPALIVE`功能不会影响到非流式响应或启用了安全设定的流式响应。
+```text
+gemini-2.5-flash-pseudo-stream
+```
 
+如果同时开启 `联网搜索`，搜索模型也会生成对应的伪流式版本：
+
+```text
+gemini-2.5-flash-search-pseudo-stream
+```
+
+## 行为说明
+
+- 普通模型的 `stream: true` 请求会保持上游 Gemini/Vertex 的原生流式响应。
+- 只有请求带 `-pseudo-stream` 后缀的模型，并且客户端传入 `stream: true` 时，才会使用伪流式。
+- 伪流式实际会向上游发起一次非流式请求，等待完整结果返回后，再包装成 OpenAI SSE 响应并发送 `[DONE]`。
+- 伪流式会保留项目的密钥轮换和重试机制，适合需要 `stream: true` 接口形态、但不需要真正逐 token 输出的客户端。
+
+该功能不再发送旧版心跳，也不再要求关闭 Worker API Key 的安全设置。

@@ -167,8 +167,8 @@ class I18n {
 
                 // 系统设置
                 'system_settings': '系统设置',
-                'keepalive_setting': 'KEEPALIVE 模式',
-                'keepalive_description': '启用后将使用保持连接模式处理请求',
+                'keepalive_setting': '伪流式模型',
+                'keepalive_description': '启用后将在模型列表中显示带-pseudo-stream后缀的伪流式模型',
                 'max_retry_setting': '最大重试次数',
                 'max_retry_description': 'API请求失败时的最大重试次数（默认：3）',
                 'web_search_setting': '联网搜索',
@@ -342,8 +342,8 @@ class I18n {
 
                 // System Settings
                 'system_settings': 'System Settings',
-                'keepalive_setting': 'KEEPALIVE Mode',
-                'keepalive_description': 'Enable keep-alive mode for request processing',
+                'keepalive_setting': 'Pseudo Stream Models',
+                'keepalive_description': 'Enable to show models with -pseudo-stream suffix for one-shot pseudo streaming',
                 'max_retry_setting': 'Max Retry Count',
                 'max_retry_description': 'Maximum retry attempts for failed API requests (default: 3)',
                 'web_search_setting': 'Web Search',

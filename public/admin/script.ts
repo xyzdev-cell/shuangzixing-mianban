@@ -1228,6 +1228,7 @@ async function renderGeminiKeys(keys) {
         const formData = new FormData(addGeminiKeyForm);
         const data = Object.fromEntries(formData.entries());
         const geminiKeyInput = data.key ? data.key.trim() : '';
+        const geminiKeyName = data.name ? data.name.trim() : '';
 
         // Check if input is empty
         if (!geminiKeyInput) {
@@ -1317,7 +1318,7 @@ async function renderGeminiKeys(keys) {
                 // Medium batch - use single batch API call
                 const result = await apiFetch('/gemini-keys/batch', {
                     method: 'POST',
-                    body: JSON.stringify({ keys: validKeys }),
+                    body: JSON.stringify({ keys: validKeys, name: geminiKeyName }),
                 });
 
                 if (result && result.success) {
@@ -1359,7 +1360,11 @@ async function renderGeminiKeys(keys) {
                     const chunkPromises = currentChunks.map((chunk, chunkIndex) =>
                         apiFetch('/gemini-keys/batch', {
                             method: 'POST',
-                            body: JSON.stringify({ keys: chunk }),
+                            body: JSON.stringify({
+                                keys: chunk,
+                                name: geminiKeyName,
+                                nameOffset: i + chunkIndex * chunkSize,
+                            }),
                         }).then(result => {
                             console.log(`Chunk ${i + chunkIndex + 1} completed: ${result?.successCount || 0} success, ${result?.failureCount || 0} failed`);
                             return result;
@@ -2456,7 +2461,7 @@ async function renderGeminiKeys(keys) {
             const settings = await apiFetch('/system-settings');
             console.log('Loaded settings:', settings); // Debug log
 
-            // Set KEEPALIVE toggle
+            // Set pseudo stream toggle
             const keepaliveToggle = document.getElementById('keepalive-toggle');
             keepaliveToggle.checked = settings.keepalive === '1' || settings.keepalive === 1 || settings.keepalive === true;
 

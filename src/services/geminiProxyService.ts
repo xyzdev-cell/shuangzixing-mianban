@@ -1,5 +1,4 @@
 import fetch from 'node-fetch';
-import { Readable } from 'node:stream';
 import { URL } from 'node:url'; // Import URL for parsing remains relevant for potential future URL parsing
 import * as dbModule from '../db/index.js';
 import * as configService from './configService.js';
@@ -168,10 +167,10 @@ function buildThinkingConfig(requestBody, modelId, forcedThinkingBudget) {
         return { includeThoughts: true };
     }
 
-    return undefined;
+    return { includeThoughts: true };
 }
 
-async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thinkingBudget, keepAliveCallback = null) {
+async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thinkingBudget) {
     const requestedModelId = openAIRequestBody?.model;
 
     if (!requestedModelId) {
@@ -188,33 +187,23 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
     let isSafetyEnabled;
     let modelsConfig: Record<string, any>;
     let MAX_RETRIES;
-    let keepAliveEnabled;
 
     try {
-        // Fetch model config, safety settings, max retry setting, and keepalive setting from database
-        [modelsConfig, isSafetyEnabled, MAX_RETRIES, keepAliveEnabled] = await Promise.all([
+        // Fetch model config, safety settings, and max retry setting from database
+        [modelsConfig, isSafetyEnabled, MAX_RETRIES] = await Promise.all([
             configService.getModelsConfig(),
             configService.getWorkerKeySafetySetting(workerApiKey), // Get safety setting for this worker key
             configService.getSetting('max_retry', '3').then(val => parseInt(val) || 3),
-            configService.getSetting('keepalive', '0').then(val => String(val) === '1')
         ]);
 
         console.log(`Using MAX_RETRIES: ${MAX_RETRIES} (from database)`);
-        console.log(`KEEPALIVE settings - keepAliveEnabled: ${keepAliveEnabled}, stream: ${stream}, isSafetyEnabled: ${isSafetyEnabled}`);
 
         // Check if web search functionality needs to be added
         // 1. Via web_search parameter or 2. Using a model ending with -search
         const isSearchModel = requestedModelId.endsWith('-search');
         const actualModelId = isSearchModel ? requestedModelId.replace('-search', '') : requestedModelId;
         const useWebSearch = isWebSearchRequested(openAIRequestBody.web_search) || isSearchModel;
-
-        // If KEEPALIVE is enabled, this is a streaming request, and safety is disabled, we'll handle it specially
-        const useKeepAlive = keepAliveEnabled && stream && !isSafetyEnabled;
-        console.log(`KEEPALIVE useKeepAlive decision: ${useKeepAlive}`);
     
-        // If using keepalive, we'll make a non-streaming request to Gemini but send streaming responses to client
-        const actualStreamMode = useKeepAlive ? false : stream;
-
         // If it's a search model, use the original model ID to find model info
         const modelLookupId = isSearchModel ? actualModelId : requestedModelId;
         modelInfo = modelsConfig[modelLookupId];
@@ -326,8 +315,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                 }
 
                 // 4. Prepare and Send Request to Gemini
-                // If keepalive is enabled and original request was streaming, use non-streaming API
-                const apiAction = actualStreamMode ? 'streamGenerateContent' : 'generateContent';
+                const apiAction = stream ? 'streamGenerateContent' : 'generateContent';
 
                 // Build complete API URL using the base URL
                 // Use actualModelId instead of requestedModelId with -search suffix
@@ -348,17 +336,8 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
 
                 // Log proxy usage here if an agent is obtained
                 const logSuffix = agent ? ` via proxy ${agent.proxy.href}` : ''; // Get proxy URL from agent if available
-                console.log(`Attempt ${attempt}: Sending ${actualStreamMode ? 'streaming' : 'non-streaming'} request to Gemini URL: ${geminiUrl}${logSuffix}`);
+                console.log(`Attempt ${attempt}: Sending ${stream ? 'streaming' : 'non-streaming'} request to Gemini URL: ${geminiUrl}${logSuffix}`);
                 
-                // Log if using keepalive mode
-                if (keepAliveEnabled && stream) {
-                    if (useKeepAlive) {
-                        console.log(`Using KEEPALIVE mode: Client expects stream but sending non-streaming request to Gemini (Safety disabled)`);
-                    } else {
-                        console.log(`KEEPALIVE is enabled but safety is also enabled. Using normal streaming mode.`);
-                    }
-                }
-
                 const fetchOptions: any = { // Create options object
                     method: 'POST',
                     headers: geminiRequestHeaders,
@@ -372,108 +351,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     fetchOptions.agent = agent;
                 }
 
-                // For KEEPALIVE mode, handle the request asynchronously to avoid blocking
-                // If using keepalive, handle it asynchronously with its own retry logic inside.
-                // This is because the main retry loop is synchronous and we need to return immediately.
-                if (useKeepAlive && keepAliveCallback) {
-                    
-                    const keepAliveRunner = async () => {
-                        console.log('KEEPALIVE: Starting heartbeat and asynchronous request process.');
-                        keepAliveCallback.startHeartbeat();
-
-                        let lastKeepAliveError = null;
-                        let lastKeepAliveStatus = 500;
-
-                        for (let kAttempt = 1; kAttempt <= MAX_RETRIES; kAttempt++) {
-                            let keepAliveKey;
-                            try {
-                                const keyModelId = isSearchModel ? actualModelId : requestedModelId;
-                                keepAliveKey = await geminiKeyService.getNextAvailableGeminiKey(keyModelId);
-
-                                if (!keepAliveKey) {
-                                    lastKeepAliveError = { message: "No available Gemini API Key for keepalive retry." };
-                                    lastKeepAliveStatus = 503;
-                                    console.error(`KEEPALIVE Attempt ${kAttempt}: No more keys to try.`);
-                                    continue; // Try to find a key in the next attempt
-                                }
-                                
-                                const currentGeminiUrl = `${BASE_GEMINI_URL}/v1beta/models/${actualModelId}:generateContent`;
-                                const currentFetchOptions = {
-                                    ...fetchOptions,
-                                    headers: { ...fetchOptions.headers, 'x-goog-api-key': keepAliveKey.key },
-                                    agent: proxyPool.getNextProxyAgent()
-                                };
-                                const logSuffix = currentFetchOptions.agent ? ` via proxy ${currentFetchOptions.agent.proxy.href}` : '';
-                                console.log(`KEEPALIVE Attempt ${kAttempt}: Sending request to ${currentGeminiUrl}${logSuffix} with key ID ${keepAliveKey.id}`);
-
-                                const geminiResponse = await fetch(currentGeminiUrl, currentFetchOptions);
-
-                                if (!geminiResponse.ok) {
-                                    const errorBodyText = await geminiResponse.text();
-                                    lastKeepAliveStatus = geminiResponse.status;
-                                    try {
-                                        lastKeepAliveError = JSON.parse(errorBodyText).error || { message: errorBodyText };
-                                    } catch {
-                                        lastKeepAliveError = { message: errorBodyText };
-                                    }
-                                    console.error(`KEEPALIVE Attempt ${kAttempt}: Gemini API error ${geminiResponse.status}:`, lastKeepAliveError.message);
-                                    
-                                    // Handle key errors for retry
-                                     if (geminiResponse.status === 429) {
-                                        geminiKeyService.handle429Error(keepAliveKey.id, modelCategory, actualModelId, lastKeepAliveError).catch(e => console.error("BG 429 Error:", e));
-                                    } else if (geminiResponse.status === 400 && shouldMark400Error(lastKeepAliveError)) {
-                                        geminiKeyService.recordKeyError(keepAliveKey.id, 400).catch(e => console.error("BG 400 Error:", e));
-                                    } else if ([401, 403, 500].includes(geminiResponse.status)) {
-                                         geminiKeyService.recordKeyError(keepAliveKey.id, geminiResponse.status).catch(e => console.error("BG Key Error:", e));
-                                    }
-                                    
-                                    // Continue to next attempt if not the last one
-                                    if (kAttempt < MAX_RETRIES) {
-                                         console.warn(`KEEPALIVE Attempt ${kAttempt} failed. Retrying...`);
-                                         continue;
-                                    } else {
-                                        // Last attempt failed, break loop to send error
-                                        break;
-                                    }
-                                }
-                                
-                                // Success case
-                                const geminiResponseData = await geminiResponse.json();
-                                geminiKeyService.incrementKeyUsage(keepAliveKey.id, actualModelId, modelCategory).catch(e => console.error("BG Usage Error:", e));
-                                console.log(`KEEPALIVE: Request successful on attempt ${kAttempt}. Stopping heartbeat.`);
-                                keepAliveCallback.stopHeartbeat();
-                                keepAliveCallback.sendFinalResponse(geminiResponseData);
-                                return; // Exit the runner function on success
-
-                            } catch (fetchError) {
-                                lastKeepAliveError = { message: `Internal Proxy Error during keepalive fetch: ${fetchError.message}`, type: 'proxy_internal_error' };
-                                lastKeepAliveStatus = 500;
-                                console.error(`KEEPALIVE Attempt ${kAttempt}: Fetch error:`, fetchError);
-                                // Don't retry on network errors, just fail
-                                break;
-                            }
-                        }
-                        
-                        // If loop finishes, all retries have failed
-                        console.error(`KEEPALIVE: All ${MAX_RETRIES} attempts failed. Sending last error.`);
-                        keepAliveCallback.stopHeartbeat();
-                        keepAliveCallback.sendError(lastKeepAliveError || { message: "All keepalive attempts failed." });
-                    };
-
-                    keepAliveRunner(); // Run the async function
-
-                    // Return immediately to the client, while keepAliveRunner works in the background
-                    return {
-                        isKeepAlive: true,
-                        // Note: selectedKeyId is not definitively known here, as it's selected inside the async runner.
-                        // We can return the first-attempt key, or null. Let's return the one from the main loop's current attempt.
-                        selectedKeyId: selectedKey.id,
-                        modelCategory: modelCategory,
-                        requestedModelId: requestedModelId
-                    };
-                }
-
-                const geminiResponse = await fetch(geminiUrl, fetchOptions); // Use fetchOptions for non-KEEPALIVE mode
+                const geminiResponse = await fetch(geminiUrl, fetchOptions);
 
                 // 5. Handle Gemini Response Status and Errors
                 if (!geminiResponse.ok) {
@@ -522,9 +400,6 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     // Retry all errors if not the last attempt
                     if (attempt < MAX_RETRIES) {
                         console.warn(`Attempt ${attempt}: Received ${geminiResponse.status} error, trying next key...`);
-                        if (useKeepAlive && keepAliveCallback) {
-                            console.log(`KEEPALIVE: Continuing heartbeat during retry attempt ${attempt + 1}`);
-                        }
                         continue; // Go to the next iteration of the loop
                     } else {
                         console.error(`Attempt ${attempt}: Received ${geminiResponse.status} error, but max retries (${MAX_RETRIES}) reached.`);
@@ -537,7 +412,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                     geminiKeyService.incrementKeyUsage(selectedKey.id, actualModelId, modelCategory)
                           .catch(err => console.error(`Error incrementing usage for key ${selectedKey.id} in background:`, err));
 
-                    // For non-KEEPALIVE mode (正常流式)，不要提前消费 response.body，直接返回
+                    // For streaming mode, do not consume response.body here. Let the route stream it through.
                     console.log(`Chat completions call completed successfully.`);
                     return {
                         response: geminiResponse,
@@ -558,12 +433,6 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
 
         // If the loop finished without returning a success or a specific non-retryable error,
         // it means all retries resulted in 429 or we broke due to an error. Return the last recorded error.
-
-        // Stop keepalive heartbeat before returning error
-        if (useKeepAlive && keepAliveCallback) {
-            console.log('KEEPALIVE: Stopping heartbeat due to all attempts failed');
-            keepAliveCallback.stopHeartbeat();
-        }
 
         console.error(`All ${MAX_RETRIES} attempts failed. Returning last recorded error (Status: ${lastErrorStatus}).`);
         return { error: lastError, status: lastErrorStatus };

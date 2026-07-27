@@ -452,11 +452,9 @@ function createSafetySettings(blockLevel = 'OFF') {
 /**
  * Handles chat completion requests for the Vertex API.
  */
-async function proxyVertexChatCompletions(openAIRequestBody, workerApiKey, stream, keepAliveCallback = null) {
+async function proxyVertexChatCompletions(openAIRequestBody, workerApiKey, stream) {
     console.log("Using Vertex AI proxy service"); // Keep log in English
 
-    // Whether to use KEEPALIVE in streaming mode - get from database only
-    const keepAliveEnabled = String(await configService.getSetting('keepalive', '0')) === '1';
     const requestedModelId = openAIRequestBody?.model;
 
     // Validate request
@@ -620,103 +618,9 @@ async function proxyVertexChatCompletions(openAIRequestBody, workerApiKey, strea
         Object.keys(requestPayload).forEach(key => (requestPayload[key] == null) && delete requestPayload[key]);
 
 
-        // Determine if KEEPALIVE mode should be used:
-        // 1. KEEPALIVE environment variable is set to 1
-        // 2. Client requested streaming
-        // 3. Safety settings are disabled
-        const useKeepAlive = keepAliveEnabled && stream && !isSafetyEnabled;
-        
-        // Determine the actual stream mode based on whether KEEPALIVE is used
-        const actualStreamMode = useKeepAlive ? false : stream;
-        
-        // Log KEEPALIVE mode
-        if (useKeepAlive) {
-            console.log(`Using KEEPALIVE mode: Client requested streaming but sending non-streaming request to Vertex (safety settings disabled)`); // Keep log in English
-        }
-
         // Handle response
         if (stream) {
-            if (useKeepAlive) {
-                // KEEPALIVE mode: Asynchronous handling with internal retry logic
-                if (keepAliveCallback) {
-                    const keepAliveRunner = async () => {
-                        console.log('KEEPALIVE (Vertex): Starting heartbeat and async request process.');
-                        keepAliveCallback.startHeartbeat();
-
-                        let lastKeepAliveError = null;
-                        const MAX_RETRIES = parseInt(await configService.getSetting('max_retry', '1')) || 1;
-
-                        for (let kAttempt = 1; kAttempt <= MAX_RETRIES; kAttempt++) {
-                            try {
-                                console.log(`KEEPALIVE (Vertex) Attempt ${kAttempt}: Sending request.`);
-                                const response = await ai.models.generateContent(requestPayload);
-
-                                // Check for valid response
-                                if (!response || !response.candidates || response.candidates.length === 0) {
-                                     const promptFeedback = response?.promptFeedback;
-                                     if (promptFeedback?.blockReason) {
-                                         const blockMessage = promptFeedback.blockReasonMessage || `Blocked due to ${promptFeedback.blockReason}`;
-                                         throw new Error(JSON.stringify({
-                                             error: {
-                                                 message: `Request blocked by Vertex AI safety filters: ${blockMessage}`,
-                                                 type: "vertex_ai_safety_filter",
-                                                 code: "content_filter"
-                                             }
-                                         }));
-                                     }
-                                     throw new Error("No valid candidates received from Vertex AI.");
-                                }
-
-                                // Success case
-                                console.log(`KEEPALIVE (Vertex): Request successful on attempt ${kAttempt}. Stopping heartbeat.`);
-                                keepAliveCallback.stopHeartbeat();
-                                keepAliveCallback.sendFinalResponse(response);
-                                return; // Exit runner on success
-
-                            } catch (error) {
-                                console.error(`KEEPALIVE (Vertex) Attempt ${kAttempt} failed:`, error.message);
-                                try {
-                                   // Try to parse the error message as it might be a JSON string
-                                   lastKeepAliveError = JSON.parse(error.message).error || { message: error.message };
-                                } catch (e) {
-                                   // If parsing fails, use the raw message
-                                   lastKeepAliveError = { message: error.message };
-                                }
-                                
-                                if (kAttempt < MAX_RETRIES) {
-                                    console.warn(`KEEPALIVE (Vertex): Retrying...`);
-                                }
-                            }
-                        }
-
-                        // If loop finishes, all retries have failed
-                        console.error(`KEEPALIVE (Vertex): All ${MAX_RETRIES} attempts failed. Sending last error.`);
-                        keepAliveCallback.stopHeartbeat();
-                        keepAliveCallback.sendError(lastKeepAliveError || { message: "All Vertex keepalive attempts failed." });
-                    };
-
-                    keepAliveRunner(); // Run the async function
-
-                    // Return immediately to the client
-                    return {
-                        isKeepAlive: true,
-                        selectedKeyId: 'vertex-ai',
-                        modelCategory: 'Vertex',
-                        requestedModelId: requestedModelId
-                    };
-                } else {
-                     console.error('KEEPALIVE: No callback available for Vertex KEEPALIVE mode');
-                     return {
-                         error: {
-                             message: 'KEEPALIVE callback not available for Vertex',
-                             type: 'vertex_keepalive_setup_error'
-                         },
-                         status: 500
-                     };
-                }
-            } else {
-                // Standard streaming mode
-                try {
+            try {
                     // Use the new API for streaming
                     const streamResult = await ai.models.generateContentStream(requestPayload);
                     
@@ -828,7 +732,6 @@ async function proxyVertexChatCompletions(openAIRequestBody, workerApiKey, strea
                         status: 500
                     };
                 }
-            }
         } else {
             // Non-streaming response
             try {

@@ -392,58 +392,61 @@ function transformGeminiStreamChunk(geminiChunk, modelId, state) {
         }
 
 
-		// Construct the delta part for the OpenAI chunk
-		const delta: any = {};
-        // Include role only if there's actual content or tool calls in this chunk
-        if (candidate.content?.role && (contentText !== null || reasoningText !== null || (toolCalls && toolCalls.length > 0))) {
-            delta.role = candidate.content.role === 'model' ? 'assistant' : candidate.content.role;
-        }
+        const chunkId = `chatcmpl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        const created = Math.floor(Date.now() / 1000);
+        const choiceIndex = candidate.index || 0;
+        const role = candidate.content?.role === 'model' ? 'assistant' : candidate.content?.role;
+        const makeChunk = (delta, chunkFinishReason) => ({
+            id: chunkId,
+            object: "chat.completion.chunk",
+            created,
+            model: modelId,
+            choices: [
+                {
+                    index: choiceIndex,
+                    delta,
+                    finish_reason: chunkFinishReason,
+                    logprobs: null,
+                },
+            ],
+        });
+
+        const chunks = [];
+        const hasMainDelta = contentText !== null || (toolCalls && toolCalls.length > 0);
 
         if (reasoningText !== null) {
-            delta.reasoning_content = reasoningText;
-        }
-
-        if (thoughtSignatures.length > 0) {
-            delta.provider_specific_fields = { thought_signatures: thoughtSignatures };
-        }
-
-        if (toolCalls && toolCalls.length > 0) {
-            delta.tool_calls = toolCalls;
-             // IMPORTANT: Explicitly set content to null if there are tool_calls but no text content in THIS chunk
-             // This aligns with OpenAI's behavior where a chunk might contain only tool_calls.
-            if (contentText === null) {
-                delta.content = null;
-            } else {
-                 delta.content = contentText; // Include text if it also exists
+            const reasoningDelta: any = { reasoning_content: reasoningText };
+            if (role) {
+                reasoningDelta.role = role;
             }
-        } else if (contentText !== null) {
-             // Only include content if there's text and no tool calls in this chunk
-            delta.content = contentText;
+            if (thoughtSignatures.length > 0) {
+                reasoningDelta.provider_specific_fields = { thought_signatures: thoughtSignatures };
+            }
+            chunks.push(makeChunk(reasoningDelta, hasMainDelta ? null : finishReason));
         }
 
+        if (hasMainDelta) {
+            const mainDelta: any = {};
+            if (role && reasoningText === null) {
+                mainDelta.role = role;
+            }
+            if (toolCalls && toolCalls.length > 0) {
+                mainDelta.tool_calls = toolCalls;
+                mainDelta.content = contentText === null ? null : contentText;
+            } else if (contentText !== null) {
+                mainDelta.content = contentText;
+            }
+            chunks.push(makeChunk(mainDelta, finishReason));
+        }
 
-		// Only create a chunk if there's something meaningful to send
-		if (Object.keys(delta).length === 0 && !finishReason) {
-			return null;
-		}
+        if (chunks.length === 0) {
+            if (!finishReason) {
+                return null;
+            }
+            chunks.push(makeChunk({}, finishReason));
+        }
 
-		const openaiChunk = {
-			id: `chatcmpl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`, // More unique ID
-			object: "chat.completion.chunk",
-			created: Math.floor(Date.now() / 1000),
-			model: modelId,
-			choices: [
-				{
-					index: candidate.index || 0,
-					delta: delta,
-					finish_reason: finishReason, // Use the mapped finishReason
-                    logprobs: null, // Not provided by Gemini
-				},
-			],
-            // Usage is typically not included in stream chunks, only at the end if at all
-		};
-
-		return `data: ${JSON.stringify(openaiChunk)}\n\n`;
+		return chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("");
 
 	} catch (e) {
 		console.error("Error transforming Gemini stream chunk:", e, "Chunk:", JSON.stringify(geminiChunk));
