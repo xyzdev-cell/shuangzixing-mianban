@@ -12,6 +12,87 @@ function parseDataUri(dataUri) {
 	return { mimeType: match[1], data: match[2] };
 }
 
+const UNSUPPORTED_GEMINI_SCHEMA_FIELDS = new Set([
+    '$schema',
+    '$id',
+    '$defs',
+    'definitions',
+    'additionalProperties',
+    'patternProperties',
+    'unevaluatedProperties',
+    'dependentSchemas',
+    'dependencies',
+    'allOf',
+    'anyOf',
+    'oneOf',
+    'not',
+    'if',
+    'then',
+    'else',
+    'const',
+    'examples',
+    'default',
+]);
+
+/**
+ * Converts an OpenAI/JSON Schema tool parameter schema to the subset accepted by
+ * Gemini function declarations.
+ */
+function sanitizeGeminiSchema(schema) {
+    if (!schema || typeof schema !== 'object') {
+        return schema;
+    }
+
+    if (Array.isArray(schema)) {
+        return schema.map(sanitizeGeminiSchema).filter((item) => item !== undefined);
+    }
+
+    const sanitized: any = {};
+
+    for (const [key, value] of Object.entries(schema)) {
+        if (UNSUPPORTED_GEMINI_SCHEMA_FIELDS.has(key)) {
+            continue;
+        }
+
+        if (key === 'type') {
+            if (Array.isArray(value)) {
+                const typeValues = value.filter((item) => typeof item === 'string');
+                const nonNullTypes = typeValues.filter((item) => item !== 'null');
+                if (typeValues.includes('null')) {
+                    sanitized.nullable = true;
+                }
+                if (nonNullTypes.length > 0) {
+                    sanitized.type = nonNullTypes[0];
+                }
+            } else if (typeof value === 'string') {
+                sanitized.type = value;
+            }
+            continue;
+        }
+
+        if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
+            const properties: any = {};
+            for (const [propertyName, propertySchema] of Object.entries(value)) {
+                const convertedProperty = sanitizeGeminiSchema(propertySchema);
+                if (convertedProperty !== undefined) {
+                    properties[propertyName] = convertedProperty;
+                }
+            }
+            sanitized.properties = properties;
+            continue;
+        }
+
+        if (key === 'items') {
+            sanitized.items = sanitizeGeminiSchema(value);
+            continue;
+        }
+
+        sanitized[key] = sanitizeGeminiSchema(value);
+    }
+
+    return sanitized;
+}
+
 /**
  * Transforms an OpenAI-compatible request body to the Gemini API format.
  * @param {object} requestBody - The OpenAI request body.
@@ -120,13 +201,9 @@ function transformOpenAiToGemini(requestBody, requestedModelId, isSafetyEnabled 
 		const functionDeclarations = openAiTools
 			.filter(tool => tool.type === 'function' && tool.function)
 			.map(tool => {
-                // Deep clone parameters to avoid modifying the original request object
-                const parameters = tool.function.parameters ? JSON.parse(JSON.stringify(tool.function.parameters)) : undefined;
-                // Remove the $schema field if it exists in the clone
-                if (parameters && parameters.$schema !== undefined) {
-                    delete parameters.$schema;
-                    console.log(`Removed '$schema' from parameters for tool: ${tool.function.name}`);
-                }
+                const parameters = tool.function.parameters
+                    ? sanitizeGeminiSchema(JSON.parse(JSON.stringify(tool.function.parameters)))
+                    : undefined;
 				return {
 					name: tool.function.name,
 					description: tool.function.description,
@@ -499,6 +576,7 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 
 export {
     parseDataUri,
+    sanitizeGeminiSchema,
     transformOpenAiToGemini,
     createStreamState,
     transformGeminiStreamChunk,
