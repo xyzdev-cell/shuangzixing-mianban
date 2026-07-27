@@ -271,6 +271,41 @@ function createStreamState() {
     };
 }
 
+function splitGeminiParts(parts = []) {
+    const contentParts = [];
+    const reasoningParts = [];
+    const functionCallParts = [];
+    const thoughtSignatures = [];
+
+    for (const part of parts) {
+        if (!part || typeof part !== 'object') continue;
+
+        if (part.thoughtSignature) {
+            thoughtSignatures.push(part.thoughtSignature);
+        }
+
+        if (part.functionCall !== undefined) {
+            functionCallParts.push(part);
+            continue;
+        }
+
+        if (part.text !== undefined) {
+            if (part.thought === true) {
+                reasoningParts.push(part);
+            } else {
+                contentParts.push(part);
+            }
+        }
+    }
+
+    return {
+        contentText: contentParts.length > 0 ? contentParts.map((part) => part.text).join("") : null,
+        reasoningText: reasoningParts.length > 0 ? reasoningParts.map((part) => part.text).join("") : null,
+        functionCallParts,
+        thoughtSignatures,
+    };
+}
+
 /**
  * Transforms a single Gemini API stream chunk into an OpenAI-compatible SSE chunk.
  * @param {object} geminiChunk - The parsed JSON object from a Gemini stream line.
@@ -294,25 +329,25 @@ function transformGeminiStreamChunk(geminiChunk, modelId, state) {
 
 		const candidate = geminiChunk.candidates[0];
 		let contentText = null;
+        let reasoningText = null;
 		let toolCalls = undefined;
+        let thoughtSignatures = [];
 
 		// Extract text content and function calls
         if (candidate.content?.parts?.length > 0) {
-            const textParts = candidate.content.parts.filter((part) => part.text !== undefined);
-            const functionCallParts = candidate.content.parts.filter((part) => part.functionCall !== undefined);
+            const splitParts = splitGeminiParts(candidate.content.parts);
+            contentText = splitParts.contentText;
+            reasoningText = splitParts.reasoningText;
+            thoughtSignatures = splitParts.thoughtSignatures;
 
-            if (textParts.length > 0) {
-                contentText = textParts.map((part) => part.text).join("");
-            }
-
-            if (functionCallParts.length > 0) {
+            if (splitParts.functionCallParts.length > 0) {
                 // Gemini emits each functionCall as a complete object (not partial JSON deltas
                 // like OpenAI). If we naively forward every chunk's functionCall, clients that
                 // accumulate `arguments` per index (e.g. LobeHub) end up with concatenated
                 // duplicates like `{}{}`, which then fail to parse and crash the renderer
                 // (Lexical error #38). So we only emit each unique call once.
                 const newCalls = [];
-                for (const part of functionCallParts) {
+                for (const part of splitParts.functionCallParts) {
                     const fc = part.functionCall;
                     if (!fc || !fc.name) continue;
                     if (state.emittedToolCalls.has(fc.name)) continue; // already sent
@@ -360,8 +395,16 @@ function transformGeminiStreamChunk(geminiChunk, modelId, state) {
 		// Construct the delta part for the OpenAI chunk
 		const delta: any = {};
         // Include role only if there's actual content or tool calls in this chunk
-        if (candidate.content?.role && (contentText !== null || (toolCalls && toolCalls.length > 0))) {
+        if (candidate.content?.role && (contentText !== null || reasoningText !== null || (toolCalls && toolCalls.length > 0))) {
             delta.role = candidate.content.role === 'model' ? 'assistant' : candidate.content.role;
+        }
+
+        if (reasoningText !== null) {
+            delta.reasoning_content = reasoningText;
+        }
+
+        if (thoughtSignatures.length > 0) {
+            delta.provider_specific_fields = { thought_signatures: thoughtSignatures };
         }
 
         if (toolCalls && toolCalls.length > 0) {
@@ -459,19 +502,19 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 
 		const candidate = geminiResponse.candidates[0];
 		let contentText = null;
+        let reasoningText = null;
 		let toolCalls = undefined;
+        let thoughtSignatures = [];
 
 		// Extract content and tool calls
 		if (candidate.content?.parts?.length > 0) {
-            const textParts = candidate.content.parts.filter((part) => part.text !== undefined);
-            const functionCallParts = candidate.content.parts.filter((part) => part.functionCall !== undefined);
+            const splitParts = splitGeminiParts(candidate.content.parts);
+            contentText = splitParts.contentText;
+            reasoningText = splitParts.reasoningText;
+            thoughtSignatures = splitParts.thoughtSignatures;
 
-            if (textParts.length > 0) {
-                contentText = textParts.map((part) => part.text).join("");
-            }
-
-            if (functionCallParts.length > 0) {
-                toolCalls = functionCallParts.map((part, index) => ({
+            if (splitParts.functionCallParts.length > 0) {
+                toolCalls = splitParts.functionCallParts.map((part, index) => ({
                     id: `call_${part.functionCall.name}_${Date.now()}_${index}`, // Example ID
                     type: "function",
                     function: {
@@ -512,6 +555,12 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 
 		// Construct the OpenAI message object
 		const message: any = { role: "assistant" };
+        if (reasoningText !== null) {
+            message.reasoning_content = reasoningText;
+        }
+        if (thoughtSignatures.length > 0) {
+            message.provider_specific_fields = { thought_signatures: thoughtSignatures };
+        }
         if (toolCalls && toolCalls.length > 0) {
              message.tool_calls = toolCalls;
              // IMPORTANT: Set content to null if only tool calls exist, otherwise include text
@@ -577,6 +626,7 @@ function transformGeminiResponseToOpenAI(geminiResponse, modelId) {
 export {
     parseDataUri,
     sanitizeGeminiSchema,
+    splitGeminiParts,
     transformOpenAiToGemini,
     createStreamState,
     transformGeminiStreamChunk,

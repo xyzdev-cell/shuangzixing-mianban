@@ -260,7 +260,13 @@ router.post('/chat/completions', async (req, res, next) => {
                             responseData,
                             requestedModelId
                         ));
-                        const content = openAIResponse.choices[0].message.content || "";
+                        const message = openAIResponse.choices[0].message;
+                        const delta: any = {
+                            role: "assistant",
+                            ...(message.reasoning_content !== undefined && { reasoning_content: message.reasoning_content }),
+                            content: message.content || "",
+                            ...(message.provider_specific_fields && { provider_specific_fields: message.provider_specific_fields }),
+                        };
                         const completeChunk = {
                             id: `chatcmpl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
                             object: "chat.completion.chunk",
@@ -268,7 +274,7 @@ router.post('/chat/completions', async (req, res, next) => {
                             model: requestedModelId,
                             choices: [{
                                 index: 0,
-                                delta: { role: "assistant", content: content },
+                                delta,
                                 finish_reason: openAIResponse.choices[0].finish_reason || "stop"
                             }]
                         };
