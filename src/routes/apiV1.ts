@@ -1,14 +1,14 @@
-// src/routes/apiV1.js
+// src/routes/apiV1.ts
 
 const express = require('express');
 const { Readable, Transform } = require('stream'); // For handling streams and transforming
-const requireWorkerAuth = require('../middleware/workerAuth');
-const geminiProxyService = require('../services/geminiProxyService');
-const configService = require('../services/configService'); // For /v1/models
-const transformUtils = require('../utils/transform');
+const requireWorkerAuth = require('../middleware/workerAuth.ts');
+const geminiProxyService = require('../services/geminiProxyService.ts');
+const configService = require('../services/configService.ts'); // For /v1/models
+const transformUtils = require('../utils/transform.ts');
 
 // Import vertexProxyService, which now includes manual loading logic
-const vertexProxyService = require('../services/vertexProxyService');
+const vertexProxyService = require('../services/vertexProxyService.ts');
 
 const router = express.Router();
 
@@ -804,3 +804,4 @@ router.post('/chat/completions', async (req, res, next) => {
 });
 
 module.exports = router;
+

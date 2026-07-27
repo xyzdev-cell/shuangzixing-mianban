@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-const GitHubSync = require('../utils/githubSync');
+const GitHubSync = require('../utils/githubSync.ts');
 
 // Construct the database path
 let dataDir;
@@ -144,7 +144,7 @@ initializeDatabase()
 
     // Initialize Vertex service after database is ready and exported
     try {
-      const vertexService = require('../services/vertexProxyService');
+      const vertexService = require('../services/vertexProxyService.ts');
       console.log('Initializing Vertex AI service after database setup...');
       await vertexService.initializeVertexCredentials();
     } catch (err) {
@@ -153,7 +153,7 @@ initializeDatabase()
 
     // Initialize scheduler service after database is ready
     try {
-      const schedulerService = require('../services/schedulerService');
+      const schedulerService = require('../services/schedulerService.ts');
       console.log('Initializing Scheduler Service after database setup...');
       await schedulerService.initialize();
       console.log('Scheduler Service: Initialized successfully');
@@ -284,3 +284,4 @@ module.exports = {
   get db() { return db; }, // Use getter to ensure db is available when accessed
   syncToGitHub
 };
+

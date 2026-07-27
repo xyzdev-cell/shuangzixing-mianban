@@ -5,8 +5,8 @@ const os = require('os');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { GoogleGenAI } = require('@google/genai');
-const configService = require('./configService');
-const transformUtils = require('../utils/transform');
+const configService = require('./configService.ts');
+const transformUtils = require('../utils/transform.ts');
 
 // List of Vertex AI supported models (prefix [v] indicates it's a Vertex API model)
 const VERTEX_SUPPORTED_MODELS = [
@@ -1028,3 +1028,4 @@ module.exports = {
     reinitializeWithDatabaseConfig, // Export reinitialization function
     initializeVertexCredentials // Export initialization function for delayed init
 };
+

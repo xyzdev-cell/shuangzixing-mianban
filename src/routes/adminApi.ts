@@ -1,20 +1,20 @@
 const express = require('express');
-const requireAdminAuth = require('../middleware/adminAuth');
-const configService = require('../services/configService');
-const geminiKeyService = require('../services/geminiKeyService');
-const vertexProxyService = require('../services/vertexProxyService');
-const batchTestService = require('../services/batchTestService');
+const requireAdminAuth = require('../middleware/adminAuth.ts');
+const configService = require('../services/configService.ts');
+const geminiKeyService = require('../services/geminiKeyService.ts');
+const vertexProxyService = require('../services/vertexProxyService.ts');
+const batchTestService = require('../services/batchTestService.ts');
 // Note: schedulerService is imported lazily when needed to avoid database initialization issues
 const fetch = require('node-fetch');
-const dbModule = require('../db');
-const proxyPool = require('../utils/proxyPool'); // Import the proxy pool module
+const dbModule = require('../db/index.ts');
+const proxyPool = require('../utils/proxyPool.ts'); // Import the proxy pool module
 const router = express.Router();
 
 // Apply admin authentication middleware to all /api/admin routes
 router.use(requireAdminAuth);
 
 // --- Helper for parsing request body (already exists in helpers.js, but useful here) ---
-// Ensure express.json() middleware is applied in server.js
+// Ensure express.json() middleware is applied in the server entrypoint
 function parseBody(req) {
     if (!req.body) {
         throw new Error("Request body not parsed. Ensure express.json() middleware is used.");
@@ -679,7 +679,7 @@ router.route('/system-settings')
 
             // Update scheduler service when auto_test setting changes
             try {
-                const schedulerService = require('../services/schedulerService');
+                const schedulerService = require('../services/schedulerService.ts');
                 await schedulerService.updateBatchTestSchedule();
                 console.log('Scheduler updated after auto_test setting change');
             } catch (schedulerError) {
@@ -718,7 +718,7 @@ router.post('/batch-test/run', async (req, res, next) => {
 
 router.get('/batch-test/status', async (req, res, next) => {
     try {
-        const schedulerService = require('../services/schedulerService');
+        const schedulerService = require('../services/schedulerService.ts');
         const schedulerStatus = schedulerService.getStatus();
         const autoTestEnabled = await configService.getSetting('auto_test', '0');
 
@@ -735,3 +735,4 @@ router.get('/batch-test/status', async (req, res, next) => {
 
 
 module.exports = router;
+

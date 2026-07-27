@@ -7,24 +7,24 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
 // Import the database module (this will also trigger initialization)
-const dbModule = require('./db');
+const dbModule = require('./db/index.ts');
 
 // Import Vertex service but don't initialize yet - will be done after DB is ready
-const vertexService = require('./services/vertexProxyService');
+const vertexService = require('./services/vertexProxyService.ts');
 
-// Note: schedulerService is imported lazily in routes/adminApi.js to avoid database initialization issues
+// Note: schedulerService is imported lazily in routes/adminApi.ts to avoid database initialization issues
 
 // Import route handlers
-const authRoutes = require('./routes/auth');
-const adminApiRoutes = require('./routes/adminApi');
-const apiV1Routes = require('./routes/apiV1');
+const authRoutes = require('./routes/auth.ts');
+const adminApiRoutes = require('./routes/adminApi.ts');
+const apiV1Routes = require('./routes/apiV1.ts');
 
 // Import services and utils (ensure proxyPool is imported to trigger its initialization)
-require('./services/geminiProxyService'); // Still need to import this for other initializations if any
-const proxyPool = require('./utils/proxyPool');
+require('./services/geminiProxyService.ts'); // Still need to import this for other initializations if any
+const proxyPool = require('./utils/proxyPool.ts');
 
 // Import middleware
-const requireAdminAuth = require('./middleware/adminAuth');
+const requireAdminAuth = require('./middleware/adminAuth.ts');
 
 const app = express();
 const port = process.env.PORT || 3000; // Default to 3000 if PORT not set
@@ -132,3 +132,4 @@ app.listen(port, '0.0.0.0', async () => {
         console.log(`API Endpoint available at: ${endpointUrl} (or the server's public address)`);
     }
 });
+

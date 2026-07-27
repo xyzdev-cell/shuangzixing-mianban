@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
-const configService = require('./configService');
-const geminiKeyService = require('./geminiKeyService');
-const proxyPool = require('../utils/proxyPool');
+const configService = require('./configService.ts');
+const geminiKeyService = require('./geminiKeyService.ts');
+const proxyPool = require('../utils/proxyPool.ts');
 
 // Base Gemini API URL
 const BASE_GEMINI_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com';
@@ -238,3 +238,4 @@ module.exports = {
     testSingleKey,
     runBatchTest
 };
+

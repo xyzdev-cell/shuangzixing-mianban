@@ -1,6 +1,6 @@
 const express = require('express');
-const { generateSessionToken, setSessionCookie, clearSessionCookie } = require('../utils/session');
-const { readRequestBody } = require('../utils/helpers'); // Although body-parser is used, keep for consistency
+const { generateSessionToken, setSessionCookie, clearSessionCookie } = require('../utils/session.ts');
+const { readRequestBody } = require('../utils/helpers.ts'); // Although body-parser is used, keep for consistency
 
 const router = express.Router();
 
@@ -11,7 +11,7 @@ if (!ADMIN_PASSWORD) {
 }
 
 // --- Login Route ---
-// Path: /api/login (mounted under /api in server.js)
+// Path: /api/login (mounted under /api in the server entrypoint)
 router.post('/login', async (req, res, next) => {
     if (!ADMIN_PASSWORD) {
         return res.status(500).json({ error: 'Server configuration error: Admin password not set.' });
@@ -49,7 +49,7 @@ router.post('/login', async (req, res, next) => {
 });
 
 // --- Logout Route ---
-// Path: /api/logout (mounted under /api in server.js)
+// Path: /api/logout (mounted under /api in the server entrypoint)
 router.post('/logout', (req, res) => {
     try {
         clearSessionCookie(res); // Clear the cookie
@@ -65,3 +65,4 @@ router.post('/logout', (req, res) => {
 });
 
 module.exports = router;
+

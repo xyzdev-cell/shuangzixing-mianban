@@ -27,14 +27,14 @@ function initializeProxyPool() {
             });
 
         if (proxies.length > 0) {
-             // This log will now be printed by index.js using getProxyPoolStatus
+             // This log will now be printed by index.ts using getProxyPoolStatus
             // console.log(`Initialized proxy pool with ${proxies.length} SOCKS5 proxies.`);
         } else {
-             // This log will now be printed by index.js using getProxyPoolStatus
+             // This log will now be printed by index.ts using getProxyPoolStatus
             // console.log('PROXY environment variable found but contains no valid SOCKS5 proxies.');
         }
     } else {
-         // This log will now be printed by index.js using getProxyPoolStatus
+         // This log will now be printed by index.ts using getProxyPoolStatus
         // console.log('PROXY environment variable not set. No proxy will be used.');
     }
 }
@@ -73,3 +73,4 @@ module.exports = {
     getNextProxyAgent,
     getProxyPoolStatus,
 };
+

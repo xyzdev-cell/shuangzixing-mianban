@@ -1,6 +1,6 @@
 const cron = require('node-cron');
-const configService = require('./configService');
-const batchTestService = require('./batchTestService');
+const configService = require('./configService.ts');
+const batchTestService = require('./batchTestService.ts');
 
 class SchedulerService {
     constructor() {
@@ -141,3 +141,4 @@ class SchedulerService {
 const schedulerService = new SchedulerService();
 
 module.exports = schedulerService;
+

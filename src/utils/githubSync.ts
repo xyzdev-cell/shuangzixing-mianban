@@ -334,3 +334,4 @@ class GitHubSync {
 }
 
 module.exports = GitHubSync;
+

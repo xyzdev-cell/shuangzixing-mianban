@@ -1,4 +1,4 @@
-const dbModule = require('../db');
+const dbModule = require('../db/index.ts');
 
 // --- Helper Functions for DB Interaction ---
 
@@ -512,3 +512,4 @@ module.exports = {
     allDb,
     serializeDb,
 };
+

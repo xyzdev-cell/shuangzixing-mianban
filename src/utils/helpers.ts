@@ -44,7 +44,7 @@ async function readRequestBody(req) {
 }
 
 
-// --- CORS Helper (for reference, but handled by 'cors' middleware in server.js) ---
+// --- CORS Helper (for reference, but handled by 'cors' middleware in the server entrypoint) ---
 // function corsHeaders() {
 // 	return {
 // 		'Access-Control-Allow-Origin': '*',
@@ -59,3 +59,4 @@ module.exports = {
     readRequestBody,
     // corsHeaders // Not exporting as it's handled by middleware
 };
+

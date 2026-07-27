@@ -1,4 +1,4 @@
-const dbModule = require('../db'); // Import the database module
+const dbModule = require('../db/index.ts'); // Import the database module
 
 /**
  * Express middleware to validate the Worker API Key provided in the Authorization header.
@@ -52,3 +52,4 @@ async function requireWorkerAuth(req, res, next) {
 }
 
 module.exports = requireWorkerAuth;
+

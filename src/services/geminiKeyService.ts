@@ -1,6 +1,6 @@
-const dbModule = require('../db');
-const configService = require('./configService'); // Use configService for DB helpers and settings
-const { getTodayInLA } = require('../utils/helpers');
+const dbModule = require('../db/index.ts');
+const configService = require('./configService.ts'); // Use configService for DB helpers and settings
+const { getTodayInLA } = require('../utils/helpers.ts');
 const crypto = require('crypto'); // For generating key IDs
 
 // --- Gemini Key CRUD Operations ---
@@ -1173,3 +1173,4 @@ module.exports = {
     deleteAllErrorKeys,
     clearAllErrorKeys,
 };
+

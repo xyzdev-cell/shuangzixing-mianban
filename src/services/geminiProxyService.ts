@@ -1,11 +1,11 @@
 const fetch = require('node-fetch');
 const { Readable } = require('stream');
 const { URL } = require('url'); // Import URL for parsing remains relevant for potential future URL parsing
-const dbModule = require('../db');
-const configService = require('./configService');
-const geminiKeyService = require('./geminiKeyService');
-const transformUtils = require('../utils/transform');
-const proxyPool = require('../utils/proxyPool'); // Import the new proxy pool module
+const dbModule = require('../db/index.ts');
+const configService = require('./configService.ts');
+const geminiKeyService = require('./geminiKeyService.ts');
+const transformUtils = require('../utils/transform.ts');
+const proxyPool = require('../utils/proxyPool.ts'); // Import the new proxy pool module
 
 
 // Base Gemini API URL
@@ -436,3 +436,4 @@ module.exports = {
     proxyChatCompletions,
     // getProxyPoolStatus is no longer needed here, it's in proxyPool.js
 };
+
