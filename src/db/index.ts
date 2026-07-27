@@ -37,11 +37,20 @@ console.log(`Database path: ${dbPath}`); // Log the path for debugging
 const githubProject = process.env.GITHUB_PROJECT;
 const githubToken = process.env.GITHUB_PROJECT_PAT;
 const githubEncryptKey = process.env.GITHUB_ENCRYPT_KEY;
+const githubSyncMode = process.env.GITHUB_SYNC_MODE;
+const githubSyncBranch = process.env.GITHUB_SYNC_BRANCH;
+const githubSyncDelaySeconds = Number.parseInt(process.env.GITHUB_SYNC_DELAY_SECONDS || '', 10);
 let githubSync = null;
 
 if (githubProject && githubToken) {
   console.log(`GitHub sync configured for repository: ${githubProject}`);
-  githubSync = new GitHubSync(githubProject, githubToken, dbPath, githubEncryptKey);
+  githubSync = new GitHubSync(githubProject, githubToken, dbPath, githubEncryptKey, {
+    syncMode: githubSyncMode,
+    branch: githubSyncBranch,
+    syncDelayMs: Number.isFinite(githubSyncDelaySeconds) && githubSyncDelaySeconds > 0
+      ? githubSyncDelaySeconds * 1000
+      : undefined,
+  });
   
   if (githubEncryptKey && githubEncryptKey.length >= 32) {
     console.log('GitHub data encryption enabled, using AES-256-CBC algorithm');

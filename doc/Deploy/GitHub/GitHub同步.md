@@ -56,6 +56,33 @@ gemini proxy panel 支持 GitHub 同步数据库功能，这个功能可以自�
 
 在环境变量中正确配置上面步骤中获取的 `GITHUB_PROJECT`、`GITHUB_PROJECT_PAT` 即可启用 GitHub 同步功能。
 
+### 同步模式（可选）
+
+默认同步模式为普通提交模式：
+
+```text
+GITHUB_SYNC_MODE=commit
+```
+
+该模式会在每次上传数据库时向同步仓库提交一次 `database.db` 更新。由于 SQLite 数据库是二进制文件，长期使用后 Git 历史可能会因为二进制快照累计而变大。
+
+如果您使用的是专门用于数据库同步的仓库，或者专门用于数据库同步的分支，可以启用强制快照模式：
+
+```text
+GITHUB_SYNC_MODE=replace-history
+GITHUB_SYNC_BRANCH=database
+```
+
+该模式每次上传时会创建一个只包含 `database.db` 的新快照提交，并强制将目标分支指向该提交。这样目标分支的可达历史只保留最新数据库快照，可避免二进制差异长期累计。
+
+> **重要：** `replace-history` 会强制重写 `GITHUB_SYNC_BRANCH` 指向的分支历史。请只在专门的数据库仓库或专门的数据库同步分支上使用。不要将其指向项目源码仓库的 `main` 分支。
+
+也可以调整数据库变更后的延迟上传时间，默认是 300 秒：
+
+```text
+GITHUB_SYNC_DELAY_SECONDS=1800
+```
+
 ### 启用加密功能（可选）
 
 数据库加密功能将使用 AES-256-CBC 加密算法实现对上传的数据库进行加密，在不泄露密钥的情况下基本可保证数据的安全不被破解。

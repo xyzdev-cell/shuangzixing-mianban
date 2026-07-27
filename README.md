@@ -211,4 +211,6 @@ These deployment methods configure environment variables through the `.env` file
   * `GITHUB_PROJECT`: Path to **your own** GitHub repository for data syncing (format: `username/repo-name`).
   * `GITHUB_PROJECT_PAT`: GitHub Personal Access Token with `repo` permission.
   * `GITHUB_ENCRYPT_KEY`: Key for encrypting synced data (at least 32 characters).
-
+  * `GITHUB_SYNC_MODE`: GitHub sync mode, defaults to `commit`; set to `replace-history` to force-refresh the sync branch history.
+  * `GITHUB_SYNC_BRANCH`: GitHub sync branch. Recommended with `replace-history`, for example `database`.
+  * `GITHUB_SYNC_DELAY_SECONDS`: Delayed upload interval after database changes, default 300.

@@ -194,4 +194,6 @@
   * `GITHUB_PROJECT`: 用于数据同步的**你自己的** GitHub 仓库路径 (格式: `username/repo-name`)。
   * `GITHUB_PROJECT_PAT`: 具有 `repo` 权限的 GitHub Personal Access Token。
   * `GITHUB_ENCRYPT_KEY`: 用于加密同步数据的密钥 (至少 32 位)。
-
+  * `GITHUB_SYNC_MODE`: GitHub 同步模式，默认为 `commit`；可设为 `replace-history` 以强制刷新同步分支历史。
+  * `GITHUB_SYNC_BRANCH`: GitHub 同步分支。使用 `replace-history` 时建议设置为专门分支，例如 `database`。
+  * `GITHUB_SYNC_DELAY_SECONDS`: 数据库变更后的延迟上传秒数，默认 300。

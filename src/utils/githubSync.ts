@@ -17,12 +17,18 @@ class GitHubSync {
   pendingSync = false;
   syncTimer: NodeJS.Timeout | null = null;
   syncDelay = 5000;
+  syncMode = 'commit';
+  syncBranch: string | null = null;
 
-  constructor(repoName, token, dbPath, encryptKey) {
+  constructor(repoName, token, dbPath, encryptKey, options: any = {}) {
     this.repoName = repoName;
     this.token = token;
     this.dbPath = dbPath;
     this.encryptKey = encryptKey;
+    this.syncMode = options.syncMode === 'replace-history' ? 'replace-history' : 'commit';
+    this.syncBranch = typeof options.branch === 'string' && options.branch.trim()
+      ? options.branch.trim()
+      : null;
 
     // Parse GitHub repo owner and name
     const repoNameParts = this.repoName.split('/');
@@ -50,7 +56,17 @@ class GitHubSync {
     // Sync scheduling variables
     this.pendingSync = false;
     this.syncTimer = null;
-    this.syncDelay = 300000; // 5 minute delay
+    this.syncDelay = typeof options.syncDelayMs === 'number' && options.syncDelayMs > 0
+      ? options.syncDelayMs
+      : 300000; // 5 minute delay
+
+    if (this.isConfigured()) {
+      console.log(`GitHub sync mode: ${this.syncMode}`);
+      if (this.syncBranch) {
+        console.log(`GitHub sync branch: ${this.syncBranch}`);
+      }
+      console.log(`GitHub sync delay: ${this.syncDelay / 1000} seconds`);
+    }
   }
 
   // Check if GitHub sync is configured and enabled
@@ -61,6 +77,19 @@ class GitHubSync {
   // Check if encryption is configured
   isEncryptionEnabled() {
     return !!this.encryptKey && this.encryptKey.length >= 32;
+  }
+
+  async getTargetBranch() {
+    if (this.syncBranch) {
+      return this.syncBranch;
+    }
+
+    const { data } = await this.octokit.repos.get({
+      owner: this.owner,
+      repo: this.repo,
+    });
+
+    return data.default_branch || 'main';
   }
 
   // Validate if a buffer has a valid SQLite header
@@ -181,10 +210,12 @@ class GitHubSync {
       // Get the content of the database file from GitHub
       // First, try to get the file info to check if it exists
       try {
+        const branch = await this.getTargetBranch();
         const { data } = await this.octokit.repos.getContent({
           owner: this.owner,
           repo: this.repo,
           path: 'database.db',
+          ref: branch,
         });
 
         // If the file exists, download the binary content
@@ -312,9 +343,13 @@ class GitHubSync {
         }
       }
 
+      if (this.syncMode === 'replace-history') {
+        return await this.uploadDatabaseByReplacingHistory(content);
+      }
+
       // Convert to base64
       const contentEncoded = content.toString('base64');
-
+      const branch = await this.getTargetBranch();
       // Try to get the file SHA if it exists (needed for update)
       let fileSha;
       try {
@@ -322,6 +357,7 @@ class GitHubSync {
           owner: this.owner,
           repo: this.repo,
           path: 'database.db',
+          ref: branch,
         });
         fileSha = data.sha;
       } catch (error) {
@@ -336,6 +372,7 @@ class GitHubSync {
         message: 'Update database',
         content: contentEncoded,
         sha: fileSha, // If undefined, GitHub will create a new file
+        branch,
       });
 
       console.log('Database successfully uploaded to GitHub');
@@ -344,6 +381,63 @@ class GitHubSync {
       console.error('Error uploading database to GitHub:', error.message);
       return false;
     }
+  }
+
+  async uploadDatabaseByReplacingHistory(content) {
+    const branch = await this.getTargetBranch();
+    console.warn(`Replacing GitHub sync history on ${this.repoName}:${branch}. Use a dedicated data repository or branch only.`);
+
+    const { data: blob } = await this.octokit.git.createBlob({
+      owner: this.owner,
+      repo: this.repo,
+      content: content.toString('base64'),
+      encoding: 'base64',
+    });
+
+    const { data: tree } = await this.octokit.git.createTree({
+      owner: this.owner,
+      repo: this.repo,
+      tree: [
+        {
+          path: 'database.db',
+          mode: '100644',
+          type: 'blob',
+          sha: blob.sha,
+        },
+      ],
+    });
+
+    const { data: commit } = await this.octokit.git.createCommit({
+      owner: this.owner,
+      repo: this.repo,
+      message: 'Replace database snapshot',
+      tree: tree.sha,
+      parents: [],
+    });
+
+    try {
+      await this.octokit.git.updateRef({
+        owner: this.owner,
+        repo: this.repo,
+        ref: `heads/${branch}`,
+        sha: commit.sha,
+        force: true,
+      });
+    } catch (error) {
+      if (error.status !== 404) {
+        throw error;
+      }
+
+      await this.octokit.git.createRef({
+        owner: this.owner,
+        repo: this.repo,
+        ref: `refs/heads/${branch}`,
+        sha: commit.sha,
+      });
+    }
+
+    console.log('Database successfully uploaded to GitHub by replacing branch history');
+    return true;
   }
 }
 
