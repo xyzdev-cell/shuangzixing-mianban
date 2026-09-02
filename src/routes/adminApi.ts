@@ -9,6 +9,7 @@ import fetch from 'node-fetch';
 import * as dbModule from '../db/index.js';
 import * as proxyPool from '../utils/proxyPool.js'; // Import the proxy pool module
 import { maskSensitiveValue } from '../utils/secrets.js';
+import { isGeminiSearchModelSupported } from '../utils/geminiSearchModels.js';
 const router = express.Router();
 
 // Apply admin authentication middleware to all /api/admin routes
@@ -270,12 +271,16 @@ router.get('/gemini-models', async (req, res, next) => {
                      const data = await response.json();
                      const processedModels = (data.models || [])
                         .filter(model => model.name?.startsWith('models/')) // Ensure correct format
-                        .map((model) => ({
-                             id: model.name.substring(7), // Extract ID
-                             name: model.displayName || model.name.substring(7), // Prefer displayName
-                             description: model.description,
-                             // Add other potentially useful fields: supportedGenerationMethods, version, etc.
-                         }));
+                        .map((model) => {
+                             const id = model.name.substring(7); // Extract ID
+                             return {
+                                 id,
+                                 name: model.displayName || id, // Prefer displayName
+                                 description: model.description,
+                                 supportedGenerationMethods: model.supportedGenerationMethods || [],
+                                 supportsSearch: isGeminiSearchModelSupported(id),
+                             };
+                         });
 
                      console.log(`Successfully fetched ${processedModels.length} models with key ${keyId}`);
                      return res.json(processedModels);
@@ -642,6 +647,7 @@ router.route('/system-settings')
             // Get settings from database
             const keepalive = await configService.getSetting('keepalive', '0');
             const maxRetry = await configService.getSetting('max_retry', '3');
+            const retryStatusCodes = await configService.getSetting('retry_status_codes', [503]);
             const webSearch = await configService.getSetting('web_search', '0');
             const autoTest = await configService.getSetting('auto_test', '0');
 
@@ -649,6 +655,7 @@ router.route('/system-settings')
             res.json({
                 keepalive: String(keepalive), // Ensure it's a string
                 maxRetry: parseInt(maxRetry) || 3,
+                retryStatusCodes: Array.isArray(retryStatusCodes) ? retryStatusCodes : [503],
                 webSearch: String(webSearch),
                 autoTest: String(autoTest)
             });
@@ -658,7 +665,7 @@ router.route('/system-settings')
     })
     .post(async (req, res, next) => {
         try {
-            const { keepalive, maxRetry, webSearch, autoTest } = parseBody(req);
+            const { keepalive, maxRetry, retryStatusCodes: rawRetryStatusCodes, webSearch, autoTest } = parseBody(req);
 
             // Validate inputs
             if (keepalive !== '0' && keepalive !== '1') {
@@ -668,6 +675,13 @@ router.route('/system-settings')
             const maxRetryNum = parseInt(maxRetry);
             if (isNaN(maxRetryNum) || maxRetryNum < 0 || maxRetryNum > 10) {
                 return res.status(400).json({ error: 'MAX_RETRY must be a number between 0 and 10' });
+            }
+
+            const retryStatusCodes = (Array.isArray(rawRetryStatusCodes) ? rawRetryStatusCodes : String(rawRetryStatusCodes ?? '503').split(','))
+                .map((code: any) => Number(String(code).trim()))
+                .filter((code: number) => Number.isInteger(code));
+            if (retryStatusCodes.some((code: number) => code < 100 || code > 599)) {
+                return res.status(400).json({ error: 'RETRY_STATUS_CODES must contain HTTP status codes between 100 and 599' });
             }
 
             if (webSearch !== '0' && webSearch !== '1') {
@@ -681,6 +695,7 @@ router.route('/system-settings')
             // Save to database (skip sync for first three, sync on the last one)
             await configService.setSetting('keepalive', keepalive, true); // Skip sync
             await configService.setSetting('max_retry', maxRetryNum.toString(), true); // Skip sync
+            await configService.setSetting('retry_status_codes', retryStatusCodes, true); // Skip sync
             await configService.setSetting('web_search', webSearch, true); // Skip sync
             await configService.setSetting('auto_test', autoTest); // Trigger sync on last setting
 
@@ -698,6 +713,7 @@ router.route('/system-settings')
                 success: true,
                 keepalive: keepalive,
                 maxRetry: maxRetryNum,
+                retryStatusCodes,
                 webSearch: webSearch,
                 autoTest: autoTest
             });

@@ -5,6 +5,7 @@ import * as configService from './configService.js';
 import * as geminiKeyService from './geminiKeyService.js';
 import * as transformUtils from '../utils/transform.js';
 import * as proxyPool from '../utils/proxyPool.js'; // Import the new proxy pool module
+import { MODEL_MODIFIERS, parseModelModifiers } from '../utils/modelModifiers.js';
 
 
 // Base Gemini API URL
@@ -187,25 +188,31 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
     let isSafetyEnabled;
     let modelsConfig: Record<string, any>;
     let MAX_RETRIES;
+    let retryStatusCodes: number[];
 
     try {
-        // Fetch model config, safety settings, and max retry setting from database
-        [modelsConfig, isSafetyEnabled, MAX_RETRIES] = await Promise.all([
+        // Fetch model config, safety settings, and retry settings from database.
+        [modelsConfig, isSafetyEnabled, MAX_RETRIES, retryStatusCodes] = await Promise.all([
             configService.getModelsConfig(),
             configService.getWorkerKeySafetySetting(workerApiKey), // Get safety setting for this worker key
             configService.getSetting('max_retry', '3').then(val => parseInt(val) || 3),
+            configService.getSetting('retry_status_codes', [503]).then(value => {
+                const values = Array.isArray(value) ? value : String(value ?? '503').split(',');
+                return values.map(Number).filter(code => Number.isInteger(code) && code >= 100 && code <= 599);
+            }),
         ]);
 
-        console.log(`Using MAX_RETRIES: ${MAX_RETRIES} (from database)`);
+        console.log(`Using MAX_RETRIES: ${MAX_RETRIES} and retry status codes: ${retryStatusCodes.join(', ') || 'none'} (from database)`);
 
         // Check if web search functionality needs to be added
-        // 1. Via web_search parameter or 2. Using a model ending with -search
-        const isSearchModel = requestedModelId.endsWith('-search');
-        const actualModelId = isSearchModel ? requestedModelId.replace('-search', '') : requestedModelId;
+        // 1. Via web_search parameter or 2. Using a model tagged with (search)
+        const parsedModelId = parseModelModifiers(requestedModelId);
+        const isSearchModel = parsedModelId.hasModifier(MODEL_MODIFIERS.search);
+        const actualModelId = parsedModelId.baseModelId;
         const useWebSearch = isWebSearchRequested(openAIRequestBody.web_search) || isSearchModel;
     
-        // If it's a search model, use the original model ID to find model info
-        const modelLookupId = isSearchModel ? actualModelId : requestedModelId;
+        // Use the base model ID to find model info.
+        const modelLookupId = actualModelId;
         modelInfo = modelsConfig[modelLookupId];
         if (!modelInfo) {
             // If model is not configured, infer category from model name
@@ -232,8 +239,8 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
             let selectedKey;
             try {
                 // 1. Get Key inside the loop for each attempt
-                // If it's a search model, use the original model ID to get the API key
-                const keyModelId = isSearchModel ? actualModelId : requestedModelId;
+                // Use the base model ID for key rotation and quota accounting.
+                const keyModelId = actualModelId;
                 
                 // If previous attempt had an empty response, force getting a new key by calling getNextAvailableGeminiKey
                 selectedKey = await geminiKeyService.getNextAvailableGeminiKey(keyModelId);
@@ -256,7 +263,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                 // 3. Transform Request Body (includes tool_choice support)
                 let { contents, systemInstruction, tools: geminiTools, toolConfig } = transformUtils.transformOpenAiToGemini(
                     openAIRequestBody,
-                    requestedModelId,
+                    actualModelId,
                     isSafetyEnabled // Pass safety setting to transformer
                 );
 
@@ -317,8 +324,7 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                 // 4. Prepare and Send Request to Gemini
                 const apiAction = stream ? 'streamGenerateContent' : 'generateContent';
 
-                // Build complete API URL using the base URL
-                // Use actualModelId instead of requestedModelId with -search suffix
+                // Build complete API URL using the base URL and base model ID.
                 const geminiUrl = `${BASE_GEMINI_URL}/v1beta/models/${actualModelId}:${apiAction}`;
 
                 const geminiRequestHeaders = {
@@ -397,18 +403,19 @@ async function proxyChatCompletions(openAIRequestBody, workerApiKey, stream, thi
                              .catch(err => console.error(`Error recording key error ${geminiResponse.status} for key ${selectedKey.id} in background:`, err));
                     }
 
-                    // Retry all errors if not the last attempt
-                    if (attempt < MAX_RETRIES) {
+                    // Retry only errors explicitly enabled by the administrator.
+                    if (retryStatusCodes.includes(geminiResponse.status) && attempt < MAX_RETRIES) {
                         console.warn(`Attempt ${attempt}: Received ${geminiResponse.status} error, trying next key...`);
                         continue; // Go to the next iteration of the loop
                     } else {
-                        console.error(`Attempt ${attempt}: Received ${geminiResponse.status} error, but max retries (${MAX_RETRIES}) reached.`);
-                        // Fall through to return the last recorded error after the loop
+                        console.error(`Attempt ${attempt}: Received ${geminiResponse.status} error; retry ${retryStatusCodes.includes(geminiResponse.status) ? `limit (${MAX_RETRIES}) reached` : 'not enabled'}.`);
+                        // Stop immediately for non-retryable errors (or after the limit).
+                        break;
                     }
                 } else {
                     // 6. Process Successful Response
                     console.log(`Attempt ${attempt}: Request successful with key ${selectedKey.id}.`);
-                    // Increment usage count for the actual model ID, not the -search version
+                    // Increment usage count for the actual model ID, not the tagged version.
                     geminiKeyService.incrementKeyUsage(selectedKey.id, actualModelId, modelCategory)
                           .catch(err => console.error(`Error incrementing usage for key ${selectedKey.id} in background:`, err));
 

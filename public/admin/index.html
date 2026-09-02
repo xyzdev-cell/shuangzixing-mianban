@@ -446,7 +446,7 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <label class="text-sm font-medium text-gray-700" data-i18n="keepalive_setting">伪流式模型</label>
-                            <p class="text-xs text-gray-500" data-i18n="keepalive_description">启用后将在模型列表中显示带-pseudo-stream后缀的伪流式模型</p>
+                            <p class="text-xs text-gray-500" data-i18n="keepalive_description">启用后将在模型列表中显示带(pseudo-stream)标签的伪流式模型</p>
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="keepalive-toggle">
@@ -458,7 +458,7 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <label class="text-sm font-medium text-gray-700" data-i18n="web_search_setting">联网搜索</label>
-                            <p class="text-xs text-gray-500" data-i18n="web_search_description">启用后将在模型列表中显示带-search后缀的联网搜索模型</p>
+                            <p class="text-xs text-gray-500" data-i18n="web_search_description">启用后将在模型列表中显示带(search)标签的联网搜索模型</p>
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="web-search-toggle">
@@ -483,6 +483,13 @@
                         <label for="max-retry-input" class="block text-sm font-medium text-gray-700" data-i18n="max_retry_setting">最大重试次数</label>
                         <p class="text-xs text-gray-500 mb-2" data-i18n="max_retry_description">API请求失败时的最大重试次数（默认：3）</p>
                         <input type="number" id="max-retry-input" min="0" max="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="3">
+                    </div>
+
+                    <!-- Retry Status Codes Setting -->
+                    <div>
+                        <label for="retry-status-codes-input" class="block text-sm font-medium text-gray-700" data-i18n="retry_status_codes_setting">可重试错误状态码</label>
+                        <p class="text-xs text-gray-500 mb-2" data-i18n="retry_status_codes_description">逗号分隔 HTTP 状态码（默认：503）</p>
+                        <input type="text" id="retry-status-codes-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="503">
                     </div>
 
                     <div class="flex justify-end space-x-3 pt-4">

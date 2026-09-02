@@ -2468,6 +2468,8 @@ async function renderGeminiKeys(keys) {
             // Set MAX_RETRY input
             const maxRetryInput = document.getElementById('max-retry-input');
             maxRetryInput.value = settings.maxRetry || 3;
+            const retryStatusCodesInput = document.getElementById('retry-status-codes-input');
+            retryStatusCodesInput.value = (settings.retryStatusCodes || [503]).join(', ');
 
             // Set Web Search toggle
             const webSearchToggle = document.getElementById('web-search-toggle');
@@ -2482,6 +2484,7 @@ async function renderGeminiKeys(keys) {
             // Set default values
             document.getElementById('keepalive-toggle').checked = false;
             document.getElementById('max-retry-input').value = 3;
+            document.getElementById('retry-status-codes-input').value = '503';
             document.getElementById('web-search-toggle').checked = false;
             document.getElementById('auto-test-toggle').checked = false;
         }
@@ -2491,12 +2494,14 @@ async function renderGeminiKeys(keys) {
         try {
             const keepaliveToggle = document.getElementById('keepalive-toggle');
             const maxRetryInput = document.getElementById('max-retry-input');
+            const retryStatusCodesInput = document.getElementById('retry-status-codes-input');
             const webSearchToggle = document.getElementById('web-search-toggle');
             const autoTestToggle = document.getElementById('auto-test-toggle');
 
             const settings = {
                 keepalive: keepaliveToggle.checked ? '1' : '0',
                 maxRetry: parseInt(maxRetryInput.value) || 3,
+                retryStatusCodes: retryStatusCodesInput.value,
                 webSearch: webSearchToggle.checked ? '1' : '0',
                 autoTest: autoTestToggle.checked ? '1' : '0'
             };

@@ -2220,6 +2220,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Set MAX_RETRY input
             const maxRetryInput = document.getElementById('max-retry-input');
             maxRetryInput.value = settings.maxRetry || 3;
+            const retryStatusCodesInput = document.getElementById('retry-status-codes-input');
+            retryStatusCodesInput.value = (settings.retryStatusCodes || [503]).join(', ');
             // Set Web Search toggle
             const webSearchToggle = document.getElementById('web-search-toggle');
             webSearchToggle.checked = settings.webSearch === '1' || settings.webSearch === 1 || settings.webSearch === true;
@@ -2232,6 +2234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Set default values
             document.getElementById('keepalive-toggle').checked = false;
             document.getElementById('max-retry-input').value = 3;
+            document.getElementById('retry-status-codes-input').value = '503';
             document.getElementById('web-search-toggle').checked = false;
             document.getElementById('auto-test-toggle').checked = false;
         }
@@ -2240,11 +2243,13 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const keepaliveToggle = document.getElementById('keepalive-toggle');
             const maxRetryInput = document.getElementById('max-retry-input');
+            const retryStatusCodesInput = document.getElementById('retry-status-codes-input');
             const webSearchToggle = document.getElementById('web-search-toggle');
             const autoTestToggle = document.getElementById('auto-test-toggle');
             const settings = {
                 keepalive: keepaliveToggle.checked ? '1' : '0',
                 maxRetry: parseInt(maxRetryInput.value) || 3,
+                retryStatusCodes: retryStatusCodesInput.value,
                 webSearch: webSearchToggle.checked ? '1' : '0',
                 autoTest: autoTestToggle.checked ? '1' : '0'
             };

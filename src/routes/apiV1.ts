@@ -6,6 +6,8 @@ import requireWorkerAuth from '../middleware/workerAuth.js';
 import * as geminiProxyService from '../services/geminiProxyService.js';
 import * as configService from '../services/configService.js'; // For /v1/models
 import * as transformUtils from '../utils/transform.js';
+import { getGeminiSearchModelIds } from '../utils/geminiSearchModels.js';
+import { MODEL_MODIFIERS, appendModelModifiers, parseModelModifiers } from '../utils/modelModifiers.js';
 
 // Import vertexProxyService, which now includes manual loading logic
 import * as vertexProxyService from '../services/vertexProxyService.js';
@@ -15,21 +17,10 @@ const router = express.Router();
 // Apply worker authentication middleware to all /v1 routes
 router.use(requireWorkerAuth);
 
-const PSEUDO_STREAM_SUFFIX = '-pseudo-stream';
-
-function getSearchModelIds(modelIds: string[]) {
-    return modelIds
-        .filter(modelId =>
-            /^gemini-[2-9]/.test(modelId) &&
-            !modelId.endsWith('-search')
-        )
-        .map(modelId => `${modelId}-search`);
-}
-
 function getPseudoStreamModelIds(modelIds: string[]) {
     return modelIds
-        .filter(modelId => !modelId.endsWith(PSEUDO_STREAM_SUFFIX))
-        .map(modelId => `${modelId}${PSEUDO_STREAM_SUFFIX}`);
+        .filter(modelId => !parseModelModifiers(modelId).hasModifier(MODEL_MODIFIERS.pseudoStream))
+        .map(modelId => appendModelModifiers(modelId, [MODEL_MODIFIERS.pseudoStream]));
 }
 
 // --- /v1/models ---
@@ -48,10 +39,10 @@ router.get('/models', async (req, res, next) => {
         // Check if web search is enabled
         const webSearchSetting = await configService.getSetting('web_search', '0');
         const webSearchEnabled = String(webSearchSetting) === '1';
-        // Add search versions for gemini-2.0+ series models only if web search is enabled
+        // Add search versions only for models known to support Google Search on the configured tier.
         let searchModels = [];
         if (webSearchEnabled) {
-            searchModels = getSearchModelIds(configuredModelIds)
+            searchModels = getGeminiSearchModelIds(configuredModelIds)
                 .map(searchModelId => ({
                     id: searchModelId,
                     object: "model",
@@ -61,15 +52,16 @@ router.get('/models', async (req, res, next) => {
         }
 
         // Add non-thinking versions for gemini-2.5-flash-preview models
-        const nonThinkingModels = configuredModelIds
+        const nonThinkingModelIds = configuredModelIds
             .filter(modelId =>
                 // Currently only gemini-2.5-flash-preview supports thinkingBudget
                 modelId.includes('gemini-2.5-flash-preview') &&
-                // Exclude models that are already non-thinking versions
-                !modelId.endsWith(':non-thinking')
+                !parseModelModifiers(modelId).hasModifier(MODEL_MODIFIERS.nonThinking)
             )
-            .map(modelId => ({
-                id: `${modelId}:non-thinking`,
+            .map(modelId => appendModelModifiers(modelId, [MODEL_MODIFIERS.nonThinking]));
+        const nonThinkingModels = nonThinkingModelIds
+            .map(nonThinkingModelId => ({
+                id: nonThinkingModelId,
                 object: "model",
                 created: Math.floor(Date.now() / 1000),
                 owned_by: "google",
@@ -81,6 +73,7 @@ router.get('/models', async (req, res, next) => {
             const pseudoSourceModelIds = [
                 ...configuredModelIds,
                 ...searchModels.map(model => model.id),
+                ...nonThinkingModelIds,
             ];
             pseudoStreamModels = getPseudoStreamModelIds(pseudoSourceModelIds)
                 .map(pseudoModelId => ({
@@ -131,19 +124,22 @@ router.post('/chat/completions', async (req, res, next) => {
         // Add search versions if web search is enabled
         const webSearchEnabled = String(await configService.getSetting('web_search', '0')) === '1';
         if (webSearchEnabled) {
-            enabledModels = [...enabledModels, ...getSearchModelIds(configuredModelIds)];
+            enabledModels = [...enabledModels, ...getGeminiSearchModelIds(configuredModelIds)];
         }
+
+        // Add non-thinking versions
+        const nonThinkingModels = configuredModelIds
+            .filter(modelId =>
+                modelId.includes('gemini-2.5-flash-preview') &&
+                !parseModelModifiers(modelId).hasModifier(MODEL_MODIFIERS.nonThinking)
+            )
+            .map(modelId => appendModelModifiers(modelId, [MODEL_MODIFIERS.nonThinking]));
+        enabledModels = [...enabledModels, ...nonThinkingModels];
 
         const pseudoStreamEnabled = String(await configService.getSetting('keepalive', '0')) === '1';
         if (pseudoStreamEnabled) {
             enabledModels = [...enabledModels, ...getPseudoStreamModelIds(enabledModels)];
         }
-
-        // Add non-thinking versions
-        const nonThinkingModels = configuredModelIds
-            .filter(modelId => modelId.includes('gemini-2.5-flash-preview') && !modelId.endsWith(':non-thinking'))
-            .map(modelId => `${modelId}:non-thinking`);
-        enabledModels = [...enabledModels, ...nonThinkingModels];
 
         // Add Vertex models if the feature is enabled
         if (vertexProxyService.isVertexEnabled()) {
@@ -163,23 +159,20 @@ router.post('/chat/completions', async (req, res, next) => {
         }
         // --- End Model Validation ---
 
-        const isPseudoStream = requestedModelId?.endsWith(PSEUDO_STREAM_SUFFIX);
-        const modelWithoutPseudoStream = isPseudoStream
-            ? requestedModelId.slice(0, -PSEUDO_STREAM_SUFFIX.length)
-            : requestedModelId;
-
-        // Check if this is a non-thinking model request
-        const isNonThinking = modelWithoutPseudoStream?.endsWith(':non-thinking');
-        // Remove the suffix for actual model lookup, but keep original for response
-        const actualModelId = isNonThinking ? modelWithoutPseudoStream.replace(':non-thinking', '') : modelWithoutPseudoStream;
+        const parsedModelId = parseModelModifiers(requestedModelId);
+        const isPseudoStream = parsedModelId.hasModifier(MODEL_MODIFIERS.pseudoStream);
+        const isNonThinking = parsedModelId.hasModifier(MODEL_MODIFIERS.nonThinking);
+        const proxyModelId = parsedModelId.hasModifier(MODEL_MODIFIERS.search)
+            ? appendModelModifiers(parsedModelId.baseModelId, [MODEL_MODIFIERS.search])
+            : parsedModelId.baseModelId;
 
         // Set thinkingBudget to 0 for non-thinking models
         const thinkingBudget = isNonThinking ? 0 : undefined;
         const upstreamStream = clientStream && !isPseudoStream;
 
         // If model was modified, update the request body with the actual model ID
-        if (actualModelId !== requestedModelId) {
-            openAIRequestBody.model = actualModelId;
+        if (proxyModelId !== requestedModelId) {
+            openAIRequestBody.model = proxyModelId;
         }
 
         let result;
