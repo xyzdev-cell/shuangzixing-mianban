@@ -16,6 +16,11 @@ const HOP_BY_HOP_HEADERS = new Set([
     'upgrade',
 ]);
 
+function waitForRetry(attempt: number) {
+    const delayMs = Math.min(1000 * 2 ** (attempt - 1), 5000);
+    return new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
 function shouldMark400Error(errorObject) {
     try {
         const errorMessage = errorObject?.error?.message || errorObject?.message;
@@ -107,39 +112,59 @@ function buildRequestBody(req) {
 
 async function proxyNativeRequest(req, apiVersion = 'v1beta') {
     const modelId = extractModelIdFromPath(req.path);
-    const selectedKey = await geminiKeyService.getNextAvailableGeminiKey(modelId, req.method !== 'GET');
-
-    if (!selectedKey) {
-        return {
-            error: { message: 'No available Gemini API Key configured or all keys are currently rate-limited/invalid.' },
-            status: 503,
-        };
-    }
-
     const upstreamUrl = buildUpstreamUrl(apiVersion, req.path, req.query);
-    const agent = proxyPool.getNextProxyAgent();
-    const fetchOptions: any = {
-        method: req.method,
-        headers: buildForwardHeaders(req, selectedKey.key),
-        body: buildRequestBody(req),
-        size: 100 * 1024 * 1024,
-        timeout: 300000,
-    };
-
-    if (agent) {
-        fetchOptions.agent = agent;
-    }
-
-    console.log(`Gemini native passthrough: ${req.method} /${apiVersion}${req.path}${agent ? ` via proxy ${agent.proxy.href}` : ''}`);
-    const response = await fetch(upstreamUrl, fetchOptions);
     const modelCategory = await getModelCategory(modelId);
+    const [maxRetrySetting, retryStatusCodesSetting] = await Promise.all([
+        configService.getSetting('max_retry', '3'),
+        configService.getSetting('retry_status_codes', [503]),
+    ]);
+    // The configured value controls total attempts; even 0 must still send the initial request.
+    const maxAttempts = Math.max(1, Math.min(10, Number.parseInt(String(maxRetrySetting), 10) || 3));
+    const retryStatusCodes = (Array.isArray(retryStatusCodesSetting) ? retryStatusCodesSetting : String(retryStatusCodesSetting ?? '503').split(','))
+        .map(code => Number(String(code).trim()))
+        .filter(code => Number.isInteger(code) && code >= 100 && code <= 599);
+    const requestBody = buildRequestBody(req);
+    let lastResponse: any;
+    let lastSelectedKeyId: string | undefined;
 
-    if (response.ok && req.method !== 'GET' && modelId) {
-        geminiKeyService.incrementKeyUsage(selectedKey.id, modelId, modelCategory)
-            .catch(err => console.error(`Error incrementing native usage for key ${selectedKey.id}:`, err));
-    } else if (!response.ok) {
-        const responseClone = response.clone();
-        const errorBodyText = await responseClone.text();
+    // A failed streaming request has no client-visible body yet, so it is safe to retry here.
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const selectedKey = await geminiKeyService.getNextAvailableGeminiKey(modelId, req.method !== 'GET');
+        if (!selectedKey) {
+            if (lastResponse) break;
+            return {
+                error: { message: 'No available Gemini API Key configured or all keys are currently rate-limited/invalid.' },
+                status: 503,
+            };
+        }
+
+        const agent = proxyPool.getNextProxyAgent();
+        const fetchOptions: any = {
+            method: req.method,
+            headers: buildForwardHeaders(req, selectedKey.key),
+            body: requestBody,
+            size: 100 * 1024 * 1024,
+            timeout: 300000,
+        };
+
+        if (agent) {
+            fetchOptions.agent = agent;
+        }
+
+        console.log(`Gemini native attempt ${attempt}/${maxAttempts}: ${req.method} /${apiVersion}${req.path}${agent ? ` via proxy ${agent.proxy.href}` : ''}`);
+        const response = await fetch(upstreamUrl, fetchOptions);
+        lastResponse = response;
+        lastSelectedKeyId = selectedKey.id;
+
+        if (response.ok) {
+            if (req.method !== 'GET' && modelId) {
+                geminiKeyService.incrementKeyUsage(selectedKey.id, modelId, modelCategory)
+                    .catch(err => console.error(`Error incrementing native usage for key ${selectedKey.id}:`, err));
+            }
+            return { response, selectedKeyId: selectedKey.id };
+        }
+
+        const errorBodyText = await response.clone().text();
         let errorBody: any = { message: errorBodyText };
 
         try {
@@ -158,11 +183,19 @@ async function proxyNativeRequest(req, apiVersion = 'v1beta') {
             geminiKeyService.recordKeyError(selectedKey.id, 400)
                 .catch(err => console.error(`Error recording native 400 for key ${selectedKey.id}:`, err));
         }
+
+        if (retryStatusCodes.includes(response.status) && attempt < maxAttempts) {
+            console.warn(`Gemini native attempt ${attempt}: received ${response.status}; retrying with the next key after backoff.`);
+            await waitForRetry(attempt);
+            continue;
+        }
+
+        break;
     }
 
     return {
-        response,
-        selectedKeyId: selectedKey.id,
+        response: lastResponse,
+        selectedKeyId: lastSelectedKeyId,
     };
 }
 
